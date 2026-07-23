@@ -6,7 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "photos",
+    tableName = "notes",
     foreignKeys = [
         ForeignKey(
             entity = ProjectEntity::class,
@@ -17,14 +17,12 @@ import androidx.room.PrimaryKey
     ],
     indices = [Index(value = ["projectId"])]
 )
-data class PhotoEntity(
+data class NoteEntity(
     @PrimaryKey(autoGenerate = true)
-    val photoId: Long = 0,
+    val noteId: Long = 0,
     val projectId: String,
-    val imageUri: String,
-    val timestampOverlay: String,
+    val content: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val annotation: String,
     val isDeleted: Boolean = false,
     val deletedTimestamp: Long? = null
 )
