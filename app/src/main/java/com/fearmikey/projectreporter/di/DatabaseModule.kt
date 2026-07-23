@@ -22,7 +22,7 @@ object DatabaseModule {
             context,
             ReportDatabase::class.java,
             "report_database"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides

@@ -9,5 +9,7 @@ data class ProjectEntity(
     val projectId: String,
     val projectName: String,
     val timestamp: Long,
-    val engineerName: String
+    val engineerName: String,
+    val isDeleted: Boolean = false,
+    val deletedTimestamp: Long? = null
 )

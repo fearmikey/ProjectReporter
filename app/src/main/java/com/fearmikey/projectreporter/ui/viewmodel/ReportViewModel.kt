@@ -2,6 +2,7 @@ package com.fearmikey.projectreporter.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fearmikey.projectreporter.data.entity.NoteEntity
 import com.fearmikey.projectreporter.data.entity.PhotoEntity
 import com.fearmikey.projectreporter.data.entity.ProjectEntity
 import com.fearmikey.projectreporter.data.repository.ReportRepository
@@ -40,6 +41,13 @@ class ReportViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val notes: StateFlow<List<NoteEntity>> = _projectId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(emptyList())
+            else repository.getNotesForProject(id)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun setProjectId(id: String) {
         _projectId.value = id
     }
@@ -47,14 +55,23 @@ class ReportViewModel @Inject constructor(
     fun addPhoto(uri: String) {
         val id = _projectId.value ?: return
         viewModelScope.launch {
-            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            val now = System.currentTimeMillis()
+            val timestampStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(now))
             val photo = PhotoEntity(
                 projectId = id,
                 imageUri = uri,
-                timestampOverlay = timestamp,
+                timestampOverlay = timestampStr,
+                timestamp = now,
                 annotation = ""
             )
             repository.insertPhoto(photo)
+        }
+    }
+
+    fun addNote(content: String) {
+        val id = _projectId.value ?: return
+        viewModelScope.launch {
+            repository.insertNote(NoteEntity(projectId = id, content = content))
         }
     }
 
@@ -64,11 +81,30 @@ class ReportViewModel @Inject constructor(
         }
     }
 
+    fun updateNote(note: NoteEntity, content: String) {
+        viewModelScope.launch {
+            repository.updateNote(note.copy(content = content))
+        }
+    }
+    
+    fun softDeletePhoto(photo: PhotoEntity) {
+        viewModelScope.launch {
+            repository.softDeletePhoto(photo)
+        }
+    }
+
+    fun softDeleteNote(note: NoteEntity) {
+        viewModelScope.launch {
+            repository.softDeleteNote(note)
+        }
+    }
+
     fun exportPdf() {
         val currentProject = project.value ?: return
         val currentPhotos = photos.value
+        val currentNotes = notes.value
         viewModelScope.launch {
-            val result = pdfExportService.exportToPdf(currentProject, currentPhotos)
+            val result = pdfExportService.exportToPdf(currentProject, currentPhotos, currentNotes)
             _pdfExportResult.emit(result)
         }
     }

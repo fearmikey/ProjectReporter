@@ -1,0 +1,4 @@
+- [x] Create `README.md`
+- [x] Create `CHANGELOG.md`
+- [/] Commit changes to Git (if possible)
+- [ ] Verify changes

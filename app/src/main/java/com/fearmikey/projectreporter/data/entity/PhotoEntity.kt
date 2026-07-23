@@ -23,5 +23,8 @@ data class PhotoEntity(
     val projectId: String,
     val imageUri: String,
     val timestampOverlay: String,
-    val annotation: String
+    val timestamp: Long = System.currentTimeMillis(),
+    val annotation: String,
+    val isDeleted: Boolean = false,
+    val deletedTimestamp: Long? = null
 )
