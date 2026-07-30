@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.fearmikey.projectreporter.data.entity.NoteEntity
 import com.fearmikey.projectreporter.data.entity.PhotoEntity
 import com.fearmikey.projectreporter.data.entity.ProjectEntity
+import com.fearmikey.projectreporter.data.model.ExportFormat
+import com.fearmikey.projectreporter.data.model.ExportOptions
 import com.fearmikey.projectreporter.data.repository.ReportRepository
 import com.fearmikey.projectreporter.util.PdfExportService
+import com.fearmikey.projectreporter.util.WordExportService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -19,7 +22,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ReportViewModel @Inject constructor(
     private val repository: ReportRepository,
-    private val pdfExportService: PdfExportService
+    private val pdfExportService: PdfExportService,
+    private val wordExportService: WordExportService
 ) : ViewModel() {
 
     private val _projectId = MutableStateFlow<String?>(null)
@@ -99,12 +103,16 @@ class ReportViewModel @Inject constructor(
         }
     }
 
-    fun exportPdf() {
+    fun exportReport(options: ExportOptions = ExportOptions()) {
         val currentProject = project.value ?: return
         val currentPhotos = photos.value
         val currentNotes = notes.value
         viewModelScope.launch {
-            val result = pdfExportService.exportToPdf(currentProject, currentPhotos, currentNotes)
+            val result = if (options.format == ExportFormat.PDF) {
+                pdfExportService.exportToPdf(currentProject, currentPhotos, currentNotes, options)
+            } else {
+                wordExportService.exportToDocx(currentProject, currentPhotos, currentNotes, options)
+            }
             _pdfExportResult.emit(result)
         }
     }

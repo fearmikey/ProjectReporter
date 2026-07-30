@@ -7,7 +7,7 @@ Project Reporter is an Android application designed for site engineers to docume
 - Project Management: Organize site visits by project ID and name.
 - Multimedia Documentation: Capture and attach photos directly to project reports.
 - Annotation: Add detailed notes to specific project entries.
-- Export Capabilities: Generate professional PDF reports for sharing and archival.
+- Export Capabilities: Generate professional PDF and Word (.docx) reports for sharing and archival.
 - Data Persistence: Local database storage using Room for offline access.
 - User Profiles: Maintain engineer information for consistent report headers.
 - Recycle Bin: Safety mechanism for deleted reports.
@@ -19,7 +19,7 @@ Project Reporter is an Android application designed for site engineers to docume
 - Local Database: Room
 - Image Loading: Coil
 - Background Tasks: Kotlin Coroutines and Flow
-- Export Service: Custom PDF generation logic
+- Export Service: Custom PDF and Apache POI-based Word generation logic
 
 ## Getting Started
 To build the project, ensure you have the latest version of Android Studio installed.

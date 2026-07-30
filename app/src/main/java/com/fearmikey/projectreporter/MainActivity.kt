@@ -44,15 +44,18 @@ class MainActivity : ComponentActivity() {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             
             val profileState by mainViewModel.profileState.collectAsState()
-            val appTheme by settingsViewModel.appTheme.collectAsState()
+            val themeSettings by settingsViewModel.themeSettings.collectAsState()
 
-            val isDarkTheme = when (appTheme) {
+            val isDarkTheme = when (themeSettings.appTheme) {
                 AppTheme.LIGHT -> false
                 AppTheme.DARK -> true
                 AppTheme.SYSTEM -> isSystemInDarkTheme()
             }
 
-            ProjectReporterTheme(darkTheme = isDarkTheme) {
+            ProjectReporterTheme(
+                darkTheme = isDarkTheme,
+                themeSettings = themeSettings
+            ) {
                 val navController = rememberNavController()
                 val context = LocalContext.current
 

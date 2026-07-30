@@ -5,8 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fearmikey.projectreporter.data.entity.ProfileEntity
 import com.fearmikey.projectreporter.data.repository.AppTheme
+import com.fearmikey.projectreporter.data.repository.ColorSchemeOption
+import com.fearmikey.projectreporter.data.repository.FlashModeOption
 import com.fearmikey.projectreporter.data.repository.ReportRepository
 import com.fearmikey.projectreporter.data.repository.SettingsRepository
+import com.fearmikey.projectreporter.data.repository.ThemeSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,12 +34,43 @@ class SettingsViewModel @Inject constructor(
     val appTheme: StateFlow<AppTheme> = settingsRepository.appTheme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppTheme.SYSTEM)
 
+    val themeSettings: StateFlow<ThemeSettings> = settingsRepository.themeSettings
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            ThemeSettings(AppTheme.SYSTEM, false, false, ColorSchemeOption.INDUSTRIAL, FlashModeOption.AUTO)
+        )
+
     val profile: StateFlow<ProfileEntity?> = reportRepository.getProfileFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun setTheme(theme: AppTheme) {
         viewModelScope.launch {
             settingsRepository.setAppTheme(theme)
+        }
+    }
+
+    fun setDynamicColor(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setDynamicColor(enabled)
+        }
+    }
+
+    fun setAmoledMode(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setAmoledMode(enabled)
+        }
+    }
+
+    fun setColorScheme(option: ColorSchemeOption) {
+        viewModelScope.launch {
+            settingsRepository.setColorScheme(option)
+        }
+    }
+
+    fun setDefaultFlashMode(option: FlashModeOption) {
+        viewModelScope.launch {
+            settingsRepository.setDefaultFlashMode(option)
         }
     }
 

@@ -14,8 +14,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.fearmikey.projectreporter.data.repository.ColorSchemeOption
+import com.fearmikey.projectreporter.data.repository.ThemeSettings
 
-private val DarkColorScheme = darkColorScheme(
+private val IndustrialDarkColorScheme = darkColorScheme(
     primary = IndustrialSecondary,
     secondary = IndustrialPrimary,
     tertiary = Pink80,
@@ -25,7 +27,7 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = Color(0xFFE0E0E0)
 )
 
-private val LightColorScheme = lightColorScheme(
+private val IndustrialLightColorScheme = lightColorScheme(
     primary = IndustrialPrimary,
     secondary = IndustrialSecondary,
     tertiary = Pink40,
@@ -35,20 +37,88 @@ private val LightColorScheme = lightColorScheme(
     onSurface = IndustrialOnSurface
 )
 
+private val MidnightDarkColorScheme = darkColorScheme(
+    primary = MidnightSecondary,
+    secondary = MidnightPrimary,
+    background = Color(0xFF0F172A),
+    surface = Color(0xFF1E293B)
+)
+
+private val MidnightLightColorScheme = lightColorScheme(
+    primary = MidnightPrimary,
+    secondary = MidnightSecondary,
+    background = Color(0xFFF8FAFC),
+    surface = Color(0xFFFFFFFF)
+)
+
+private val OceanDarkColorScheme = darkColorScheme(
+    primary = OceanSecondary,
+    secondary = OceanPrimary,
+    background = Color(0xFF0B1622),
+    surface = Color(0xFF15202B)
+)
+
+private val OceanLightColorScheme = lightColorScheme(
+    primary = OceanPrimary,
+    secondary = OceanSecondary,
+    background = OceanBackground,
+    surface = OceanSurface
+)
+
+private val ForestDarkColorScheme = darkColorScheme(
+    primary = ForestSecondary,
+    secondary = ForestPrimary,
+    background = Color(0xFF0D1B0D),
+    surface = Color(0xFF1B2B1B)
+)
+
+private val ForestLightColorScheme = lightColorScheme(
+    primary = ForestPrimary,
+    secondary = ForestSecondary,
+    background = ForestBackground,
+    surface = ForestSurface
+)
+
 @Composable
 fun ProjectReporterTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Disabled for professional industrial look
+    themeSettings: ThemeSettings? = null,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
+    val dynamicColor = themeSettings?.useDynamicColor ?: false
+    val amoledMode = themeSettings?.amoledMode ?: false
+    val colorSchemeOption = themeSettings?.colorSchemeOption ?: ColorSchemeOption.INDUSTRIAL
+
+    var colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        darkTheme -> {
+            when (colorSchemeOption) {
+                ColorSchemeOption.INDUSTRIAL -> IndustrialDarkColorScheme
+                ColorSchemeOption.MIDNIGHT -> MidnightDarkColorScheme
+                ColorSchemeOption.OCEAN -> OceanDarkColorScheme
+                ColorSchemeOption.FOREST -> ForestDarkColorScheme
+            }
+        }
+        else -> {
+            when (colorSchemeOption) {
+                ColorSchemeOption.INDUSTRIAL -> IndustrialLightColorScheme
+                ColorSchemeOption.MIDNIGHT -> MidnightLightColorScheme
+                ColorSchemeOption.OCEAN -> OceanLightColorScheme
+                ColorSchemeOption.FOREST -> ForestLightColorScheme
+            }
+        }
     }
+
+    if (darkTheme && amoledMode) {
+        colorScheme = colorScheme.copy(
+            background = Color.Black,
+            surface = Color.Black
+        )
+    }
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {

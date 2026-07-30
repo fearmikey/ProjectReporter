@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-07-30
+### Added
+- Word document (.docx) export support using Apache POI.
+- Professional PDF formatting with consistent headers and page numbering on all pages.
+
+### Fixed
+- PDF text wrapping issues for long notes and photo annotations.
+- Site observations cutting off in PDF grid layouts.
+
+### Improved
+- Photo detail view: Optimized note visibility with tightened layout.
+- Photo detail view: Implemented auto-scroll to keep cursor in view when typing or keyboard opens.
+- Export UI: Added format selector for choosing between PDF and Word.
+
 ## [1.1.0] - 2026-07-23
 ### Added
 - Project documentation (README.md and CHANGELOG.md).

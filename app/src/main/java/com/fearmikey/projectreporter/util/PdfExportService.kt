@@ -14,6 +14,7 @@ import androidx.core.net.toUri
 import com.fearmikey.projectreporter.data.entity.NoteEntity
 import com.fearmikey.projectreporter.data.entity.PhotoEntity
 import com.fearmikey.projectreporter.data.entity.ProjectEntity
+import com.fearmikey.projectreporter.data.model.ExportOptions
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -30,15 +31,13 @@ class PdfExportService @Inject constructor(
     suspend fun exportToPdf(
         project: ProjectEntity,
         photos: List<PhotoEntity>,
-        notes: List<NoteEntity>
+        notes: List<NoteEntity>,
+        options: ExportOptions
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val qualityMultiplier = 3f
             val pdfDocument = PdfDocument()
             val paint = Paint()
-            val titlePaint = Paint().apply {
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                textSize = 24f
-            }
             val textPaint = Paint().apply {
                 textSize = 14f
             }
@@ -52,32 +51,30 @@ class PdfExportService @Inject constructor(
             var page = pdfDocument.startPage(pageInfo)
             var canvas = page.canvas
 
-            // Header
-            canvas.drawText("Site Service Report", 40f, 50f, titlePaint)
-            canvas.drawText("Project: ${project.projectName} (${project.projectId})", 40f, 80f, textPaint)
-            canvas.drawText("Engineer: ${project.engineerName}", 40f, 100f, textPaint)
-            val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(project.timestamp))
-            canvas.drawText("Date: $dateStr", 40f, 120f, textPaint)
+            // Initial Header
+            drawPageFrame(canvas, pageInfo, project, pageNumber)
 
-            var yPos = 160f
+            var yPos = 140f
             val margin = 40f
             val contentWidth = pageInfo.pageWidth - 2 * margin
 
-            // Draw Notes first
-            if (notes.isNotEmpty()) {
+            // Draw Notes
+            if (options.includeNotes && notes.isNotEmpty()) {
                 canvas.drawText("General Notes:", margin, yPos, boldTextPaint)
                 yPos += 24f
                 for (note in notes) {
-                    if (yPos + 40f > pageInfo.pageHeight - margin) {
-                        pdfDocument.finishPage(page)
-                        pageNumber++
-                        pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
-                        page = pdfDocument.startPage(pageInfo)
-                        canvas = page.canvas
-                        yPos = margin
-                    }
-                    val lines = note.content.split("\n")
-                    for (line in lines) {
+                    val wrappedLines = wrapText(note.content, textPaint, contentWidth - 15f)
+                    
+                    for (line in wrappedLines) {
+                        if (yPos + 20f > pageInfo.pageHeight - 60f) {
+                            pdfDocument.finishPage(page)
+                            pageNumber++
+                            pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                            page = pdfDocument.startPage(pageInfo)
+                            canvas = page.canvas
+                            drawPageFrame(canvas, pageInfo, project, pageNumber)
+                            yPos = 100f
+                        }
                         canvas.drawText("• $line", margin, yPos, textPaint)
                         yPos += 18f
                     }
@@ -88,42 +85,131 @@ class PdfExportService @Inject constructor(
 
             // Draw Photos
             if (photos.isNotEmpty()) {
+                // Ensure some space for "Photo Observations" label
+                if (yPos + 50f > pageInfo.pageHeight - 60f) {
+                    pdfDocument.finishPage(page)
+                    pageNumber++
+                    pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                    page = pdfDocument.startPage(pageInfo)
+                    canvas = page.canvas
+                    drawPageFrame(canvas, pageInfo, project, pageNumber)
+                    yPos = 100f
+                }
+
                 canvas.drawText("Photo Observations:", margin, yPos, boldTextPaint)
                 yPos += 24f
-                for (photo in photos) {
-                    // Load and prepare bitmap first to get its dimensions
-                    val bitmap = loadBitmapFromUri(photo.imageUri)
-                    if (bitmap != null) {
+
+                if (options.photosPerPage == 1) {
+                    // Flowing layout
+                    for (photo in photos) {
+                        val bitmap = loadBitmapFromUri(photo.imageUri) ?: continue
                         val rotatedBitmap = rotateBitmapIfNecessary(bitmap, photo.imageUri)
-                        val scaledBitmap = scaleBitmap(rotatedBitmap, contentWidth.toInt(), 600)
+                        val scaledBitmap = scaleBitmap(rotatedBitmap, (contentWidth * qualityMultiplier).toInt(), (450 * qualityMultiplier).toInt())
+                        val logicalWidth = scaledBitmap.width / qualityMultiplier
+                        val logicalHeight = scaledBitmap.height / qualityMultiplier
                         
-                        // Calculate text height
-                        val annotationLines = if (photo.annotation.isNotEmpty()) photo.annotation.split("\n") else emptyList()
-                        val textHeight = 20f + (annotationLines.size * 18f)
+                        val wrappedAnnotations = if (photo.annotation.isNotEmpty()) {
+                            wrapText(photo.annotation, textPaint, contentWidth)
+                        } else emptyList()
                         
-                        // Check if we need a new page for image + metadata
-                        val requiredHeight = scaledBitmap.height + textHeight + 40f
-                        if (yPos + requiredHeight > pageInfo.pageHeight - margin) {
+                        var textHeight = 0f
+                        if (options.includeTimestamp) textHeight += 20f
+                        textHeight += wrappedAnnotations.size * 18f
+                        
+                        val requiredHeight = logicalHeight + textHeight + 40f
+                        if (yPos + requiredHeight > pageInfo.pageHeight - 60f) {
                             pdfDocument.finishPage(page)
                             pageNumber++
                             pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
                             page = pdfDocument.startPage(pageInfo)
                             canvas = page.canvas
-                            yPos = margin
+                            drawPageFrame(canvas, pageInfo, project, pageNumber)
+                            yPos = 100f
                         }
 
-                        // Draw Photo
-                        canvas.drawBitmap(scaledBitmap, margin, yPos, paint)
-                        yPos += scaledBitmap.height + 12f
+                        canvas.drawBitmap(scaledBitmap, null, RectF(margin, yPos, margin + logicalWidth, yPos + logicalHeight), paint)
+                        yPos += logicalHeight + 12f
 
-                        // Draw Timestamp and Annotation
-                        canvas.drawText("Captured: ${photo.timestampOverlay}", margin, yPos, textPaint)
-                        yPos += 20f
-                        for (line in annotationLines) {
+                        if (options.includeTimestamp) {
+                            canvas.drawText("Captured: ${photo.timestampOverlay}", margin, yPos, textPaint)
+                            yPos += 20f
+                        }
+                        for (line in wrappedAnnotations) {
                             canvas.drawText(line, margin, yPos, textPaint)
                             yPos += 18f
                         }
                         yPos += 30f // Spacing between photo entries
+                    }
+                } else {
+                    // Grid layout (2 or 4 per page)
+                    val cols = if (options.photosPerPage == 4) 2 else 1
+                    val rows = 2
+                    val cellWidth = (contentWidth - (cols - 1) * 20f) / cols
+                    val cellHeight = (pageInfo.pageHeight - 160f) / rows
+                    
+                    // Start photos on a new page if we are too far down
+                    if (yPos > 200f) {
+                        pdfDocument.finishPage(page)
+                        pageNumber++
+                        pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                        page = pdfDocument.startPage(pageInfo)
+                        canvas = page.canvas
+                        drawPageFrame(canvas, pageInfo, project, pageNumber)
+                        yPos = 100f
+                    }
+
+                    var photoIndex = 0
+                    for (photo in photos) {
+                        val bitmap = loadBitmapFromUri(photo.imageUri) ?: continue
+                        
+                        if (photoIndex > 0 && photoIndex % options.photosPerPage == 0) {
+                            pdfDocument.finishPage(page)
+                            pageNumber++
+                            pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                            page = pdfDocument.startPage(pageInfo)
+                            canvas = page.canvas
+                            drawPageFrame(canvas, pageInfo, project, pageNumber)
+                            yPos = 100f
+                        }
+
+                        val localIndex = photoIndex % options.photosPerPage
+                        val col = localIndex % cols
+                        val row = localIndex / cols
+                        
+                        val x = margin + col * (cellWidth + 20f)
+                        val y = 100f + row * cellHeight
+                        
+                        val rotatedBitmap = rotateBitmapIfNecessary(bitmap, photo.imageUri)
+                        
+                        // Metadata height estimation
+                        val smallTextPaint = Paint(textPaint).apply { textSize = 10f }
+                        val wrappedAnnotations = if (photo.annotation.isNotEmpty()) {
+                            wrapText(photo.annotation, smallTextPaint, cellWidth)
+                        } else emptyList()
+                        
+                        var metadataHeight = 0f
+                        if (options.includeTimestamp) metadataHeight += 14f
+                        metadataHeight += Math.min(wrappedAnnotations.size, 8) * 14f
+                        
+                        val maxImageHeight = cellHeight - metadataHeight - 20f
+                        val scaledBitmap = scaleBitmap(rotatedBitmap, (cellWidth * qualityMultiplier).toInt(), (maxImageHeight * qualityMultiplier).toInt())
+                        val logicalWidth = scaledBitmap.width / qualityMultiplier
+                        val logicalHeight = scaledBitmap.height / qualityMultiplier
+                        
+                        canvas.drawBitmap(scaledBitmap, null, RectF(x, y, x + logicalWidth, y + logicalHeight), paint)
+                        var currentY = y + logicalHeight + 10f
+                        
+                        if (options.includeTimestamp) {
+                            canvas.drawText("Captured: ${photo.timestampOverlay}", x, currentY, smallTextPaint)
+                            currentY += 14f
+                        }
+                        
+                        for (i in 0 until Math.min(wrappedAnnotations.size, 8)) {
+                            canvas.drawText(wrappedAnnotations[i], x, currentY, smallTextPaint)
+                            currentY += 14f
+                        }
+                        
+                        photoIndex++
                     }
                 }
             }
@@ -151,6 +237,91 @@ class PdfExportService @Inject constructor(
             e.printStackTrace()
             Result.failure(e)
         }
+    }
+
+    private fun drawPageFrame(
+        canvas: Canvas,
+        pageInfo: PdfDocument.PageInfo,
+        project: ProjectEntity,
+        pageNumber: Int
+    ) {
+        val margin = 40f
+        val paint = Paint().apply {
+            color = Color.LTGRAY
+            strokeWidth = 1f
+        }
+        val headerPaint = Paint().apply {
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = 10f
+            color = Color.GRAY
+        }
+        val titlePaint = Paint().apply {
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = 20f
+        }
+        val subTitlePaint = Paint().apply {
+            textSize = 12f
+            color = Color.DKGRAY
+        }
+
+        // Header Line
+        canvas.drawLine(margin, 30f, pageInfo.pageWidth - margin, 30f, paint)
+        canvas.drawText("Site Service Report", margin, 25f, headerPaint)
+        canvas.drawText("Project: ${project.projectName}", pageInfo.pageWidth - margin - headerPaint.measureText("Project: ${project.projectName}"), 25f, headerPaint)
+
+        // Footer Line
+        canvas.drawLine(margin, pageInfo.pageHeight - 30f, pageInfo.pageWidth - margin, pageInfo.pageHeight - 30f, paint)
+        canvas.drawText("Generated by Project Reporter", margin, pageInfo.pageHeight - 15f, headerPaint)
+        canvas.drawText("Page $pageNumber", pageInfo.pageWidth - margin - headerPaint.measureText("Page $pageNumber"), pageInfo.pageHeight - 15f, headerPaint)
+
+        // Project Info (only on page 1)
+        if (pageNumber == 1) {
+            canvas.drawText("SITE SERVICE REPORT", margin, 70f, titlePaint)
+            canvas.drawText("Project: ${project.projectName} (${project.projectId})", margin, 95f, subTitlePaint)
+            canvas.drawText("Engineer: ${project.engineerName}", margin, 115f, subTitlePaint)
+            val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(project.timestamp))
+            canvas.drawText("Date: $dateStr", pageInfo.pageWidth - margin - subTitlePaint.measureText("Date: $dateStr"), 115f, subTitlePaint)
+        }
+    }
+
+    private fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {
+        val lines = mutableListOf<String>()
+        val paragraphs = text.split("\n")
+        
+        for (paragraph in paragraphs) {
+            if (paragraph.isEmpty()) {
+                lines.add("")
+                continue
+            }
+            
+            val words = paragraph.split(" ")
+            var currentLine = StringBuilder()
+            
+            for (word in words) {
+                val testLine = if (currentLine.isEmpty()) word else "${currentLine} $word"
+                if (paint.measureText(testLine) <= maxWidth) {
+                    currentLine.append(if (currentLine.isEmpty()) word else " $word")
+                } else {
+                    if (currentLine.isNotEmpty()) {
+                        lines.add(currentLine.toString())
+                    }
+                    currentLine = StringBuilder(word)
+                    
+                    // Handle very long words that exceed maxWidth on their own
+                    while (paint.measureText(currentLine.toString()) > maxWidth && currentLine.length > 1) {
+                        // This is a simple fallback for words longer than the line
+                        // In a real scenario, you might want hyphenation or hard breaks
+                        val part = currentLine.substring(0, currentLine.length - 1)
+                        lines.add(part)
+                        currentLine = StringBuilder(currentLine.substring(currentLine.length - 1))
+                    }
+                }
+            }
+            if (currentLine.isNotEmpty()) {
+                lines.add(currentLine.toString())
+            }
+        }
+        return lines
     }
 
     private fun loadBitmapFromUri(uriStr: String): Bitmap? {
