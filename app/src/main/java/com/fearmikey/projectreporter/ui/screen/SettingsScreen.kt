@@ -4,19 +4,25 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fearmikey.projectreporter.data.repository.AppTheme
+import com.fearmikey.projectreporter.data.repository.ColorSchemeOption
+import com.fearmikey.projectreporter.data.repository.FlashModeOption
 import com.fearmikey.projectreporter.ui.viewmodel.SettingsViewModel
+import android.os.Build
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,10 +30,12 @@ fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val currentTheme by viewModel.appTheme.collectAsState()
+    val themeSettings by viewModel.themeSettings.collectAsState()
     val profile by viewModel.profile.collectAsState()
     
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showColorSchemeDialog by remember { mutableStateOf(false) }
+    var showFlashModeDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -50,19 +58,67 @@ fun SettingsScreen(
                 .padding(padding)
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                // Appearance Section
+                Text(
+                    text = "Appearance",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
                 ListItem(
                     headlineContent = { Text("App Theme") },
-                    supportingContent = { Text(currentTheme.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                    supportingContent = { Text(themeSettings.appTheme.name.lowercase().replaceFirstChar { it.uppercase() }) },
                     leadingContent = { Icon(Icons.Default.Palette, contentDescription = null) },
                     modifier = Modifier.clickable { showThemeDialog = true }
                 )
-                HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("Engineer Profile") },
-                    supportingContent = { Text(profile?.engineerName ?: "Not set") },
-                    leadingContent = { Icon(Icons.Default.Person, contentDescription = null) },
-                    modifier = Modifier.clickable { showProfileDialog = true }
+                    headlineContent = { Text("Color Scheme") },
+                    supportingContent = { Text(themeSettings.colorSchemeOption.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                    leadingContent = { Icon(Icons.Default.ColorLens, contentDescription = null) },
+                    modifier = Modifier.clickable { showColorSchemeDialog = true }
                 )
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    ListItem(
+                        headlineContent = { Text("Use Dynamic Color") },
+                        supportingContent = { Text("Use colors from your system wallpaper") },
+                        trailingContent = {
+                            Switch(
+                                checked = themeSettings.useDynamicColor,
+                                onCheckedChange = { viewModel.setDynamicColor(it) }
+                            )
+                        }
+                    )
+                }
+
+                ListItem(
+                    headlineContent = { Text("AMOLED Mode") },
+                    supportingContent = { Text("Pure black background in dark mode") },
+                    trailingContent = {
+                        Switch(
+                            checked = themeSettings.amoledMode,
+                            onCheckedChange = { viewModel.setAmoledMode(it) }
+                        )
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // General Section
+                Text(
+                    text = "General",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                ListItem(
+                    headlineContent = { Text("Default Flash Mode") },
+                    supportingContent = { Text(themeSettings.defaultFlashMode.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                    leadingContent = { Icon(Icons.Default.FlashOn, contentDescription = null) },
+                    modifier = Modifier.clickable { showFlashModeDialog = true }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             }
 
             // App Metadata Footer
@@ -97,11 +153,33 @@ fun SettingsScreen(
 
         if (showThemeDialog) {
             ThemeSelectionDialog(
-                currentTheme = currentTheme,
+                currentTheme = themeSettings.appTheme,
                 onDismiss = { showThemeDialog = false },
                 onThemeSelected = {
                     viewModel.setTheme(it)
                     showThemeDialog = false
+                }
+            )
+        }
+
+        if (showColorSchemeDialog) {
+            ColorSchemeSelectionDialog(
+                currentOption = themeSettings.colorSchemeOption,
+                onDismiss = { showColorSchemeDialog = false },
+                onOptionSelected = {
+                    viewModel.setColorScheme(it)
+                    showColorSchemeDialog = false
+                }
+            )
+        }
+
+        if (showFlashModeDialog) {
+            FlashModeSelectionDialog(
+                currentOption = themeSettings.defaultFlashMode,
+                onDismiss = { showFlashModeDialog = false },
+                onOptionSelected = {
+                    viewModel.setDefaultFlashMode(it)
+                    showFlashModeDialog = false
                 }
             )
         }
@@ -144,6 +222,76 @@ fun ThemeSelectionDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(theme.name.lowercase().replaceFirstChar { it.uppercase() })
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun ColorSchemeSelectionDialog(
+    currentOption: ColorSchemeOption,
+    onDismiss: () -> Unit,
+    onOptionSelected: (ColorSchemeOption) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Color Scheme") },
+        text = {
+            Column {
+                ColorSchemeOption.entries.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOptionSelected(option) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = currentOption == option,
+                            onClick = { onOptionSelected(option) }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(option.name.lowercase().replaceFirstChar { it.uppercase() })
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun FlashModeSelectionDialog(
+    currentOption: FlashModeOption,
+    onDismiss: () -> Unit,
+    onOptionSelected: (FlashModeOption) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Default Flash Mode") },
+        text = {
+            Column {
+                FlashModeOption.entries.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOptionSelected(option) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = currentOption == option,
+                            onClick = { onOptionSelected(option) }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(option.name.lowercase().replaceFirstChar { it.uppercase() })
                     }
                 }
             }

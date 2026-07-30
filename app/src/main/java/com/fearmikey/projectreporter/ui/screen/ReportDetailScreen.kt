@@ -2,11 +2,9 @@ package com.fearmikey.projectreporter.ui.screen
 
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.CircleShape
@@ -29,16 +27,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.fearmikey.projectreporter.data.entity.NoteEntity
 import com.fearmikey.projectreporter.data.entity.PhotoEntity
+import com.fearmikey.projectreporter.data.model.ExportFormat
+import com.fearmikey.projectreporter.data.model.ExportOptions
 import com.fearmikey.projectreporter.ui.component.CameraPreview
 import com.fearmikey.projectreporter.ui.viewmodel.ReportViewModel
+import com.fearmikey.projectreporter.ui.viewmodel.SettingsViewModel
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.onFocusEvent
+import kotlinx.coroutines.launch
 
 sealed class ReportItem {
     data class Photo(val photo: PhotoEntity) : ReportItem()
@@ -62,11 +68,13 @@ sealed class ReportItem {
 fun ReportDetailScreen(
     projectId: String,
     onBack: () -> Unit,
-    viewModel: ReportViewModel = hiltViewModel()
+    viewModel: ReportViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val project by viewModel.project.collectAsState()
     val photos by viewModel.photos.collectAsState()
     val notes by viewModel.notes.collectAsState()
+    val themeSettings by settingsViewModel.themeSettings.collectAsState()
     val context = LocalContext.current
 
     val reportItems = remember(photos, notes) {
@@ -90,71 +98,72 @@ fun ReportDetailScreen(
 
     var showCamera by remember { mutableStateOf(false) }
     var showNoteDialog by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
     var noteToEdit by remember { mutableStateOf<NoteEntity?>(null) }
     var photoToView by remember { mutableStateOf<PhotoEntity?>(null) }
     val gridState = rememberLazyGridState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    if (isSelectionMode) {
-                        Text("${selectedIds.size} selected")
-                    } else {
-                        Text(project?.projectName ?: "Loading...", fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (isSelectionMode) selectedIds = emptySet()
-                        else onBack()
-                    }) {
-                        Icon(
-                            if (isSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                actions = {
-                    if (isSelectionMode) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        if (isSelectionMode) {
+                            Text("${selectedIds.size} selected")
+                        } else {
+                            Text(project?.projectName ?: "Loading...", fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    navigationIcon = {
                         IconButton(onClick = {
-                            selectedIds.forEach { id ->
-                                if (id.startsWith("photo_")) {
-                                    val photoId = id.removePrefix("photo_").toLong()
-                                    photos.find { it.photoId == photoId }?.let { viewModel.softDeletePhoto(it) }
-                                } else {
-                                    val noteId = id.removePrefix("note_").toLong()
-                                    notes.find { it.noteId == noteId }?.let { viewModel.softDeleteNote(it) }
+                            if (isSelectionMode) selectedIds = emptySet()
+                            else onBack()
+                        }) {
+                            Icon(
+                                if (isSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                    },
+                    actions = {
+                        if (isSelectionMode) {
+                            IconButton(onClick = {
+                                selectedIds.forEach { id ->
+                                    if (id.startsWith("photo_")) {
+                                        val photoId = id.removePrefix("photo_").toLong()
+                                        photos.find { it.photoId == photoId }?.let { viewModel.softDeletePhoto(it) }
+                                    } else {
+                                        val noteId = id.removePrefix("note_").toLong()
+                                        notes.find { it.noteId == noteId }?.let { viewModel.softDeleteNote(it) }
+                                    }
                                 }
+                                selectedIds = emptySet()
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete")
                             }
-                            selectedIds = emptySet()
-                        }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete")
-                        }
-                    } else {
-                        IconButton(onClick = { 
-                            // Enter selection mode manually
-                            if (reportItems.isNotEmpty()) {
-                                selectedIds = setOf(reportItems.first().id)
+                        } else {
+                            IconButton(onClick = { 
+                                // Enter selection mode manually
+                                if (reportItems.isNotEmpty()) {
+                                    selectedIds = setOf(reportItems.first().id)
+                                }
+                            }) {
+                                Icon(Icons.Default.Checklist, contentDescription = "Select")
                             }
-                        }) {
-                            Icon(Icons.Default.Checklist, contentDescription = "Select")
+                            IconButton(onClick = { showExportDialog = true }) {
+                                Icon(Icons.Default.Share, contentDescription = "Export PDF")
+                            }
                         }
-                        IconButton(onClick = { viewModel.exportPdf() }) {
-                            Icon(Icons.Default.Share, contentDescription = "Export PDF")
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isSelectionMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
-                    titleContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = if (isSelectionMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
+                        titleContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
+                    )
                 )
-            )
-        },
-        floatingActionButton = {
-            if (!showCamera) {
+            },
+            floatingActionButton = {
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -177,27 +186,7 @@ fun ReportDetailScreen(
                     )
                 }
             }
-        }
-    ) { padding ->
-        if (showCamera) {
-            Dialog(
-                onDismissRequest = { showCamera = false },
-                properties = androidx.compose.ui.window.DialogProperties(
-                    usePlatformDefaultWidth = false,
-                    decorFitsSystemWindows = false
-                )
-            ) {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    CameraScreen(
-                        onPhotoCaptured = { uri ->
-                            viewModel.addPhoto(uri.toString())
-                            showCamera = false
-                        },
-                        onClose = { showCamera = false }
-                    )
-                }
-            }
-        } else {
+        ) { padding ->
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyVerticalGrid(
                     state = gridState,
@@ -259,33 +248,146 @@ fun ReportDetailScreen(
             }
         }
 
-        if (showNoteDialog) {
-            AddNoteDialog(
-                initialContent = noteToEdit?.content ?: "",
-                onDismiss = {
-                    showNoteDialog = false
-                    noteToEdit = null
-                },
-                onConfirm = { content ->
-                    if (noteToEdit != null) {
-                        viewModel.updateNote(noteToEdit!!, content)
-                    } else {
-                        viewModel.addNote(content)
-                    }
-                    showNoteDialog = false
-                    noteToEdit = null
-                }
-            )
-        }
-
-        if (photoToView != null) {
-            PhotoDetailDialog(
-                photo = photoToView!!,
-                onDismiss = { photoToView = null },
-                onUpdateAnnotation = { viewModel.updateAnnotation(photoToView!!, it) }
-            )
+        // Camera Overlay
+        if (showCamera) {
+            BackHandler {
+                showCamera = false
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .zIndex(1f)
+            ) {
+                CameraScreen(
+                    onPhotoCaptured = { uri ->
+                        viewModel.addPhoto(uri.toString())
+                        showCamera = false
+                    },
+                    onClose = { showCamera = false },
+                    defaultFlashMode = themeSettings.defaultFlashMode
+                )
+            }
         }
     }
+
+    if (showNoteDialog) {
+        AddNoteDialog(
+            initialContent = noteToEdit?.content ?: "",
+            onDismiss = {
+                showNoteDialog = false
+                noteToEdit = null
+            },
+            onConfirm = { content ->
+                if (noteToEdit != null) {
+                    viewModel.updateNote(noteToEdit!!, content)
+                } else {
+                    viewModel.addNote(content)
+                }
+                showNoteDialog = false
+                noteToEdit = null
+            }
+        )
+    }
+
+    if (photoToView != null) {
+        PhotoDetailDialog(
+            photo = photoToView!!,
+            onDismiss = { photoToView = null },
+            onUpdateAnnotation = { viewModel.updateAnnotation(photoToView!!, it) }
+        )
+    }
+
+    if (showExportDialog) {
+        ExportOptionsDialog(
+            onDismiss = { showExportDialog = false },
+            onConfirm = { options ->
+                viewModel.exportReport(options)
+                showExportDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun ExportOptionsDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (ExportOptions) -> Unit
+) {
+    var format by remember { mutableStateOf(ExportFormat.PDF) }
+    var photosPerPage by remember { mutableIntStateOf(1) }
+    var includeNotes by remember { mutableStateOf(true) }
+    var includeTimestamp by remember { mutableStateOf(true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Export Report Options") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Export Format", style = MaterialTheme.typography.labelLarge)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ExportFormat.values().forEach { option ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = format == option,
+                                onClick = { format = option }
+                            )
+                            Text(text = if (option == ExportFormat.PDF) "PDF" else "Word (.docx)")
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                if (format == ExportFormat.PDF) {
+                    Text("Photos Per Page", style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf(1, 2, 4).forEach { option ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = photosPerPage == option,
+                                    onClick = { photosPerPage = option }
+                                )
+                                Text(text = option.toString())
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = includeNotes, onCheckedChange = { includeNotes = it })
+                    Text("Include Notes")
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = includeTimestamp, onCheckedChange = { includeTimestamp = it })
+                    Text("Include Timestamps")
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onConfirm(ExportOptions(format, photosPerPage, includeNotes, includeTimestamp))
+            }) {
+                Text("Export")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
@@ -462,7 +564,7 @@ fun AddNoteDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PhotoDetailDialog(
     photo: PhotoEntity,
@@ -470,6 +572,16 @@ fun PhotoDetailDialog(
     onUpdateAnnotation: (String) -> Unit
 ) {
     var annotation by remember { mutableStateOf(photo.annotation) }
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+
+    // Auto-scroll to bottom when keyboard opens or text grows
+    LaunchedEffect(annotation) {
+        if (scrollState.maxValue > 0) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -482,84 +594,103 @@ fun PhotoDetailDialog(
             modifier = Modifier.fillMaxSize(),
             color = Color.Black
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .imePadding() // Automatically shrinks the column when keyboard appears
-            ) {
-                // Top Controls
-                Row(
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxSize()
+                        .imePadding()
+                        .verticalScroll(scrollState)
                 ) {
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                    // Top Controls
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                    }
-                    Text(
-                        "Photo Detail",
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(end = 48.dp)
-                    )
-                }
-
-                // Photo Area (Flexible weight)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    AsyncImage(
-                        model = photo.imageUri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
-                }
-
-                // Bottom Annotation Area
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .navigationBarsPadding(),
-                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.7f)),
-                    shape = MaterialTheme.shapes.large,
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
                         Text(
-                            text = "Captured: ${photo.timestampOverlay}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = annotation,
-                            onValueChange = {
-                                annotation = it
-                                onUpdateAnnotation(it)
-                            },
-                            label = { Text("Site Observations", color = Color.White) },
-                            placeholder = { Text("Add site notes here...", color = Color.White.copy(alpha = 0.4f)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
-                                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
-                            )
+                            "Photo Detail",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(end = 48.dp)
                         )
                     }
+
+                    // Photo Area
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = this@BoxWithConstraints.maxHeight * 0.65f), // Ensure notes section "peeks" on tall images
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        AsyncImage(
+                            model = photo.imageUri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxWidth(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+
+                    // Bottom Annotation Area
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1C)),
+                        shape = MaterialTheme.shapes.large,
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Captured: ${photo.timestampOverlay}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextField(
+                                value = annotation,
+                                onValueChange = {
+                                    annotation = it
+                                    onUpdateAnnotation(it)
+                                },
+                                label = { Text("Site Observations", color = Color.White.copy(alpha = 0.7f)) },
+                                placeholder = { Text("Add site notes here...", color = Color.White.copy(alpha = 0.4f)) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .bringIntoViewRequester(bringIntoViewRequester)
+                                    .onFocusEvent { focusState ->
+                                        if (focusState.isFocused) {
+                                            coroutineScope.launch {
+                                                bringIntoViewRequester.bringIntoView()
+                                            }
+                                        }
+                                    },
+                                minLines = 3,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+                                colors = TextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedContainerColor = Color.White.copy(alpha = 0.05f),
+                                    unfocusedContainerColor = Color.White.copy(alpha = 0.03f),
+                                    cursorColor = MaterialTheme.colorScheme.primary,
+                                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedIndicatorColor = Color.White.copy(alpha = 0.3f),
+                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
+                                )
+                            )
+                        }
+                    }
+                    // Add extra padding at the bottom to ensure the card isn't cut off by the keyboard
+                    Spacer(modifier = Modifier.height(24.dp).navigationBarsPadding())
                 }
             }
         }
@@ -567,6 +698,14 @@ fun PhotoDetailDialog(
 }
 
 @Composable
-fun CameraScreen(onPhotoCaptured: (Uri) -> Unit, onClose: () -> Unit) {
-    CameraPreview(onPhotoCaptured = onPhotoCaptured, onClose = onClose)
+fun CameraScreen(
+    onPhotoCaptured: (Uri) -> Unit,
+    onClose: () -> Unit,
+    defaultFlashMode: com.fearmikey.projectreporter.data.repository.FlashModeOption
+) {
+    CameraPreview(
+        onPhotoCaptured = onPhotoCaptured,
+        onClose = onClose,
+        defaultFlashMode = defaultFlashMode
+    )
 }
