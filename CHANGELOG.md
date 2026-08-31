@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-08-31
+### Added
+- Predictive back gesture support via `enableOnBackInvokedCallback`.
+- Custom Coil `ImageLoader` configuration with crossfade transitions and memory caching controls.
+
+### Improved
+- Standardized UI state collection across screens using lifecycle-aware `collectAsStateWithLifecycle()`.
+- Enabled R8 code minification and resource shrinking for release builds, with ProGuard rules for Apache POI dependencies.
+- Updated core libraries including Compose BOM, Room, Hilt, Lifecycle, CameraX, and Navigation Compose.
+
 ## [1.2.0] - 2026-07-30
 ### Added
 - Word document (.docx) export support using Apache POI.

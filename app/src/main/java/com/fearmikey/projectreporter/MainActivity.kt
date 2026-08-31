@@ -14,8 +14,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
@@ -43,8 +43,8 @@ class MainActivity : ComponentActivity() {
             val mainViewModel: MainViewModel = hiltViewModel()
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             
-            val profileState by mainViewModel.profileState.collectAsState()
-            val themeSettings by settingsViewModel.themeSettings.collectAsState()
+            val profileState by mainViewModel.profileState.collectAsStateWithLifecycle()
+            val themeSettings by settingsViewModel.themeSettings.collectAsStateWithLifecycle()
 
             val isDarkTheme = when (themeSettings.appTheme) {
                 AppTheme.LIGHT -> false

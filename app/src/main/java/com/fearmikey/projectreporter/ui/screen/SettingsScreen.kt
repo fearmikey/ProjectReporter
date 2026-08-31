@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fearmikey.projectreporter.data.repository.AppTheme
 import com.fearmikey.projectreporter.data.repository.ColorSchemeOption
 import com.fearmikey.projectreporter.data.repository.FlashModeOption
@@ -30,8 +31,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val themeSettings by viewModel.themeSettings.collectAsState()
-    val profile by viewModel.profile.collectAsState()
+    val themeSettings by viewModel.themeSettings.collectAsStateWithLifecycle()
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
     
     var showThemeDialog by remember { mutableStateOf(false) }
     var showColorSchemeDialog by remember { mutableStateOf(false) }

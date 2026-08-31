@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.fearmikey.projectreporter.data.entity.NoteEntity
 import com.fearmikey.projectreporter.data.entity.PhotoEntity
@@ -71,10 +72,10 @@ fun ReportDetailScreen(
     viewModel: ReportViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val project by viewModel.project.collectAsState()
-    val photos by viewModel.photos.collectAsState()
-    val notes by viewModel.notes.collectAsState()
-    val themeSettings by settingsViewModel.themeSettings.collectAsState()
+    val project by viewModel.project.collectAsStateWithLifecycle()
+    val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val notes by viewModel.notes.collectAsStateWithLifecycle()
+    val themeSettings by settingsViewModel.themeSettings.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val reportItems = remember(photos, notes) {

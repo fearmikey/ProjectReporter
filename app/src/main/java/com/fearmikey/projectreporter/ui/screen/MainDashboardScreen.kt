@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fearmikey.projectreporter.data.entity.ProfileEntity
 import com.fearmikey.projectreporter.data.entity.ProjectEntity
 import com.fearmikey.projectreporter.ui.viewmodel.MainViewModel
@@ -30,8 +31,8 @@ fun MainDashboardScreen(
     onRecycleBinClick: () -> Unit,
     viewModel: MainViewModel = hiltViewModel()
 ) {
-    val projects by viewModel.projects.collectAsState()
-    val profile by viewModel.profile.collectAsState()
+    val projects by viewModel.projects.collectAsStateWithLifecycle()
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
     var showDialog by remember { mutableStateOf(false) }
 
     var selectedProjectIds by remember { mutableStateOf(setOf<String>()) }
