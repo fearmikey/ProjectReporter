@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fearmikey.projectreporter.ui.viewmodel.DeletedItem
 import com.fearmikey.projectreporter.ui.viewmodel.RecycleBinViewModel
 import java.text.SimpleDateFormat
@@ -28,7 +29,7 @@ fun RecycleBinScreen(
     onBack: () -> Unit,
     viewModel: RecycleBinViewModel = hiltViewModel()
 ) {
-    val deletedItems by viewModel.deletedItems.collectAsState()
+    val deletedItems by viewModel.deletedItems.collectAsStateWithLifecycle()
     var showEmptyBinDialog by remember { mutableStateOf(false) }
 
     Scaffold(

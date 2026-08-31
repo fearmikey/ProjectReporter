@@ -11,15 +11,17 @@ Project Reporter is an Android application designed for site engineers to docume
 - Data Persistence: Local database storage using Room for offline access.
 - User Profiles: Maintain engineer information for consistent report headers.
 - Recycle Bin: Safety mechanism for deleted reports.
+- Optimized Performance: Memory-cached image loading with Coil, lifecycle-aware state collection, and predictive back navigation support.
 
 ## Technical Stack
 - Language: Kotlin
-- UI Framework: Jetpack Compose
+- UI Framework: Jetpack Compose with Material 3
 - Architecture: MVVM with Hilt for Dependency Injection
 - Local Database: Room
-- Image Loading: Coil
-- Background Tasks: Kotlin Coroutines and Flow
-- Export Service: Custom PDF and Apache POI-based Word generation logic
+- Image Loading: Coil (custom ImageLoader with memory caching and crossfade)
+- Async Processing: Kotlin Coroutines & Lifecycle-Aware Flows
+- Export Services: Custom iText-based PDF and Apache POI-based Word document generation
+- Build Optimization: R8 code minification and resource shrinking
 
 ## Getting Started
 To build the project, ensure you have the latest version of Android Studio installed.
