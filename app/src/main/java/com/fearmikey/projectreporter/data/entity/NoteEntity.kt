@@ -12,7 +12,8 @@ import androidx.room.PrimaryKey
             entity = ProjectEntity::class,
             parentColumns = ["projectId"],
             childColumns = ["projectId"],
-            onDelete = ForeignKey.CASCADE
+            onDelete = ForeignKey.CASCADE,
+            onUpdate = ForeignKey.CASCADE
         )
     ],
     indices = [Index(value = ["projectId"])]

@@ -51,7 +51,8 @@ class WordExportService @Inject constructor(
             info.alignment = ParagraphAlignment.LEFT
             val infoRun = info.createRun()
             infoRun.fontSize = 12
-            infoRun.setText("Project: ${project.projectName} (${project.projectId})")
+            val projectLabel = project.displayProjectNumber?.let { "Project: ${project.projectName} ($it)" } ?: "Project: ${project.projectName}"
+            infoRun.setText(projectLabel)
             infoRun.addBreak()
             infoRun.setText("Engineer: ${project.engineerName}")
             infoRun.addBreak()
@@ -143,7 +144,8 @@ class WordExportService @Inject constructor(
             }
 
             // Save to MediaStore
-            val fileName = "Report_${project.projectId}_${System.currentTimeMillis()}.docx"
+            val idPart = project.displayProjectNumber?.let { "_$it" } ?: ""
+            val fileName = "Report${idPart}_${System.currentTimeMillis()}.docx"
             val contentValues = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
                 put(MediaStore.MediaColumns.MIME_TYPE, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")

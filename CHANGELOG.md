@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-08-31
+### Added
+- `AGENTS.md` specifying F-Droid release workflow, build verification, and version control standards.
+- Edit Site Report dialog (`EditProjectDialog`) for editing project numbers, names, and engineer details.
+- Custom company logo image upload with automatic color extraction via AndroidX Palette API.
+- Photo watermark configuration options for timestamp, GPS location, and project details in settings.
+
+### Improved
+- CameraPreview component with enhanced capture and preview controls.
+- Profile setup screen and settings repository preferences.
+- Theme system supporting dynamic branding color schemes.
+
 ## [1.3.0] - 2026-08-31
 ### Added
 - Predictive back gesture support via `enableOnBackInvokedCallback`.

@@ -1,6 +1,6 @@
 package com.fearmikey.projectreporter.ui.screen
 
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,9 +17,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.fearmikey.projectreporter.data.entity.ProfileEntity
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import com.fearmikey.projectreporter.data.entity.ProjectEntity
+import com.fearmikey.projectreporter.ui.component.EditProjectDialog
 import com.fearmikey.projectreporter.ui.viewmodel.MainViewModel
+import com.fearmikey.projectreporter.ui.viewmodel.SettingsViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -29,14 +33,21 @@ fun MainDashboardScreen(
     onProjectClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
     onRecycleBinClick: () -> Unit,
-    viewModel: MainViewModel = hiltViewModel()
+    viewModel: MainViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val themeSettings by settingsViewModel.themeSettings.collectAsStateWithLifecycle()
     var showDialog by remember { mutableStateOf(false) }
+    var projectToEdit by remember { mutableStateOf<ProjectEntity?>(null) }
 
     var selectedProjectIds by remember { mutableStateOf(setOf<String>()) }
     val isSelectionMode = selectedProjectIds.isNotEmpty()
+
+    BackHandler(enabled = isSelectionMode) {
+        selectedProjectIds = emptySet()
+    }
 
     Scaffold(
         topBar = {
@@ -45,7 +56,20 @@ fun MainDashboardScreen(
                     if (isSelectionMode) {
                         Text("${selectedProjectIds.size} selected")
                     } else {
-                        Text("Site Service Reports", fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (themeSettings.companyLogoUri != null) {
+                                AsyncImage(
+                                    model = themeSettings.companyLogoUri,
+                                    contentDescription = "Company Logo",
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(MaterialTheme.shapes.small),
+                                    contentScale = ContentScale.Fit
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                            }
+                            Text("Site Service Reports", fontWeight = FontWeight.Bold)
+                        }
                     }
                 },
                 navigationIcon = {
@@ -57,6 +81,13 @@ fun MainDashboardScreen(
                 },
                 actions = {
                     if (isSelectionMode) {
+                        if (selectedProjectIds.size == 1) {
+                            IconButton(onClick = {
+                                projectToEdit = projects.find { it.projectId == selectedProjectIds.first() }
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                            }
+                        }
                         IconButton(onClick = {
                             selectedProjectIds.forEach { id ->
                                 projects.find { it.projectId == id }?.let { viewModel.softDeleteProject(it) }
@@ -90,12 +121,14 @@ fun MainDashboardScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = { showDialog = true },
-                containerColor = MaterialTheme.colorScheme.secondary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "New Report")
-            }
+                icon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(28.dp)) },
+                text = { Text("New Report", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                elevation = FloatingActionButtonDefaults.elevation(8.dp)
+            )
         }
     ) { padding ->
         if (projects.isEmpty()) {
@@ -127,6 +160,9 @@ fun MainDashboardScreen(
                         },
                         onLongClick = {
                             selectedProjectIds = selectedProjectIds + project.projectId
+                        },
+                        onEditClick = {
+                            projectToEdit = project
                         }
                     )
                 }
@@ -137,10 +173,29 @@ fun MainDashboardScreen(
             CreateProjectDialog(
                 initialEngineerName = profile?.engineerName ?: "",
                 onDismiss = { showDialog = false },
+                onCheckExists = { checkId, callback -> viewModel.checkProjectExists(checkId, callback) },
                 onConfirm = { id, name, engineer ->
                     viewModel.createProject(id, name, engineer)
                     showDialog = false
                     onProjectClick(id)
+                }
+            )
+        }
+
+        projectToEdit?.let { project ->
+            EditProjectDialog(
+                project = project,
+                onDismiss = { projectToEdit = null },
+                onConfirm = { oldId, newId, newName, newEngineer, onResult ->
+                    viewModel.updateProject(oldId, newId, newName, newEngineer) { success ->
+                        if (success) {
+                            if (selectedProjectIds.contains(oldId)) {
+                                selectedProjectIds = (selectedProjectIds - oldId) + newId
+                            }
+                            projectToEdit = null
+                        }
+                        onResult(success)
+                    }
                 }
             )
         }
@@ -189,13 +244,13 @@ fun EmptyDashboard(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ProjectCard(
     project: ProjectEntity,
     isSelected: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onEditClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -211,16 +266,37 @@ fun ProjectCard(
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = project.projectName,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "ID: ${project.projectId}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = project.projectName,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (!isSelected) {
+                        IconButton(
+                            onClick = onEditClick,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Project",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                project.displayProjectNumber?.let { projectNumber ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "ID: $projectNumber",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -255,11 +331,13 @@ fun ProjectCard(
 fun CreateProjectDialog(
     initialEngineerName: String,
     onDismiss: () -> Unit,
+    onCheckExists: (String, (Boolean) -> Unit) -> Unit,
     onConfirm: (String, String, String) -> Unit
 ) {
     var id by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var engineer by remember { mutableStateOf(initialEngineerName) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -268,28 +346,54 @@ fun CreateProjectDialog(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = id,
-                    onValueChange = { id = it },
-                    label = { Text("Project Number") },
-                    modifier = Modifier.fillMaxWidth()
+                    onValueChange = {
+                        id = it
+                        errorMessage = null
+                    },
+                    label = { Text("Project Number (Optional)") },
+                    isError = errorMessage != null,
+                    supportingText = errorMessage?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Project Name") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
                 OutlinedTextField(
                     value = engineer,
                     onValueChange = { engineer = it },
                     label = { Text("Engineer Name") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
             }
         },
         confirmButton = {
             Button(
-                onClick = { if (id.isNotBlank() && name.isNotBlank()) onConfirm(id, name, engineer) },
-                enabled = id.isNotBlank() && name.isNotBlank()
+                onClick = {
+                    val trimmedId = id.trim()
+                    val trimmedName = name.trim()
+                    val trimmedEngineer = engineer.trim()
+                    if (trimmedName.isNotBlank()) {
+                        if (trimmedId.isNotBlank()) {
+                            onCheckExists(trimmedId) { exists ->
+                                if (exists) {
+                                    errorMessage = "Project Number already exists"
+                                } else {
+                                    onConfirm(trimmedId, trimmedName, trimmedEngineer)
+                                }
+                            }
+                        } else {
+                            val autoId = "proj_${UUID.randomUUID()}"
+                            onConfirm(autoId, trimmedName, trimmedEngineer)
+                        }
+                    }
+                },
+                enabled = name.isNotBlank()
             ) {
                 Text("Create")
             }

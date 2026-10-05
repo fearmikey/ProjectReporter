@@ -18,9 +18,11 @@ import com.fearmikey.projectreporter.data.repository.ColorSchemeOption
 import com.fearmikey.projectreporter.data.repository.ThemeSettings
 
 private val IndustrialDarkColorScheme = darkColorScheme(
-    primary = IndustrialSecondary,
-    secondary = IndustrialPrimary,
-    tertiary = Pink80,
+    primary = IndustrialSecondary, // Orange
+    onPrimary = Color.Black,
+    secondary = Color(0xFF3498DB), // High contrast vibrant blue
+    onSecondary = Color.Black,
+    tertiary = Color(0xFF1ABC9C),
     background = Color(0xFF121212),
     surface = Color(0xFF1E1E1E),
     onBackground = Color(0xFFE0E0E0),
@@ -39,7 +41,9 @@ private val IndustrialLightColorScheme = lightColorScheme(
 
 private val MidnightDarkColorScheme = darkColorScheme(
     primary = MidnightSecondary,
-    secondary = MidnightPrimary,
+    onPrimary = Color.White,
+    secondary = Color(0xFF3498DB),
+    onSecondary = Color.White,
     background = Color(0xFF0F172A),
     surface = Color(0xFF1E293B)
 )
@@ -53,7 +57,9 @@ private val MidnightLightColorScheme = lightColorScheme(
 
 private val OceanDarkColorScheme = darkColorScheme(
     primary = OceanSecondary,
-    secondary = OceanPrimary,
+    onPrimary = Color.Black,
+    secondary = Color(0xFF3498DB),
+    onSecondary = Color.White,
     background = Color(0xFF0B1622),
     surface = Color(0xFF15202B)
 )
@@ -67,7 +73,9 @@ private val OceanLightColorScheme = lightColorScheme(
 
 private val ForestDarkColorScheme = darkColorScheme(
     primary = ForestSecondary,
+    onPrimary = Color.Black,
     secondary = ForestPrimary,
+    onSecondary = Color.White,
     background = Color(0xFF0D1B0D),
     surface = Color(0xFF1B2B1B)
 )
@@ -116,6 +124,16 @@ fun ProjectReporterTheme(
         colorScheme = colorScheme.copy(
             background = Color.Black,
             surface = Color.Black
+        )
+    }
+
+    // Override primary and secondary colors if custom brand colors are set from company logo
+    if (themeSettings?.logoPrimaryColor != null) {
+        val customPrimary = Color(themeSettings.logoPrimaryColor)
+        val customSecondary = themeSettings.logoSecondaryColor?.let { Color(it) } ?: customPrimary
+        colorScheme = colorScheme.copy(
+            primary = customPrimary,
+            secondary = customSecondary
         )
     }
 

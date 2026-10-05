@@ -67,6 +67,20 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun updateProject(oldId: String, newId: String, newName: String, newEngineer: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val success = repository.updateProjectDetails(oldId, newId, newName, newEngineer)
+            onResult(success)
+        }
+    }
+
+    fun checkProjectExists(projectId: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val exists = repository.getProjectByIdDirect(projectId) != null
+            onResult(exists)
+        }
+    }
+
     fun softDeleteProject(project: ProjectEntity) {
         viewModelScope.launch {
             repository.softDeleteProject(project)

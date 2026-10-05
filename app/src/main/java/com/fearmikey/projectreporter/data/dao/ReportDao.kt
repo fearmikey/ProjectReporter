@@ -19,7 +19,13 @@ interface ReportDao {
     fun getAllProjects(): Flow<List<ProjectEntity>>
 
     @Query("SELECT * FROM projects WHERE projectId = :projectId AND isDeleted = 0")
-    suspend fun getProjectById(projectId: String): ProjectEntity?
+    fun getProjectById(projectId: String): Flow<ProjectEntity?>
+
+    @Query("SELECT * FROM projects WHERE projectId = :projectId AND isDeleted = 0")
+    suspend fun getProjectByIdDirect(projectId: String): ProjectEntity?
+
+    @Query("UPDATE projects SET projectId = :newId, projectName = :newName, engineerName = :newEngineer WHERE projectId = :oldId")
+    suspend fun updateProjectDetails(oldId: String, newId: String, newName: String, newEngineer: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPhoto(photo: PhotoEntity)

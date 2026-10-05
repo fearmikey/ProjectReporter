@@ -9,9 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,7 +78,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     if (profileState is ProfileState.Loading) {
                         // Show nothing or a splash/loading indicator while determining profile state
                         Box(modifier = Modifier.fillMaxSize())
@@ -90,7 +91,7 @@ class MainActivity : ComponentActivity() {
                         NavHost(
                             navController = navController,
                             startDestination = Screen.Dashboard.route,
-                            modifier = Modifier.padding(padding)
+                            modifier = Modifier.fillMaxSize()
                         ) {
                             composable(Screen.Permissions.route) {
                                 PermissionScreen(

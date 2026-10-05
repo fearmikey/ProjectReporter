@@ -34,7 +34,7 @@ class ReportViewModel @Inject constructor(
     val project: StateFlow<ProjectEntity?> = _projectId
         .flatMapLatest { id ->
             if (id == null) flowOf(null)
-            else flow<ProjectEntity?> { emit(repository.getProjectById(id)) }
+            else repository.getProjectById(id)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -56,7 +56,18 @@ class ReportViewModel @Inject constructor(
         _projectId.value = id
     }
 
-    fun addPhoto(uri: String) {
+    fun updateProject(newId: String, newName: String, newEngineer: String, onResult: (Boolean) -> Unit) {
+        val oldId = _projectId.value ?: return
+        viewModelScope.launch {
+            val success = repository.updateProjectDetails(oldId, newId, newName, newEngineer)
+            if (success && oldId != newId) {
+                _projectId.value = newId
+            }
+            onResult(success)
+        }
+    }
+
+    fun addPhoto(uri: String, annotation: String = "") {
         val id = _projectId.value ?: return
         viewModelScope.launch {
             val now = System.currentTimeMillis()
@@ -66,7 +77,7 @@ class ReportViewModel @Inject constructor(
                 imageUri = uri,
                 timestampOverlay = timestampStr,
                 timestamp = now,
-                annotation = ""
+                annotation = annotation
             )
             repository.insertPhoto(photo)
         }

@@ -14,8 +14,8 @@ android {
         applicationId = "com.fearmikey.projectreporter"
         minSdk = 30
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3.0"
+        versionCode = 5
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -105,6 +105,9 @@ dependencies {
     // Coil
     implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
+
+    // Palette
+    implementation("androidx.palette:palette-ktx:1.0.0")
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
