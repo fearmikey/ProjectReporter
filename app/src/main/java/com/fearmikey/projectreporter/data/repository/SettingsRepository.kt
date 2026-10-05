@@ -27,7 +27,13 @@ data class ThemeSettings(
     val useDynamicColor: Boolean,
     val amoledMode: Boolean,
     val colorSchemeOption: ColorSchemeOption,
-    val defaultFlashMode: FlashModeOption
+    val defaultFlashMode: FlashModeOption,
+    val companyLogoUri: String? = null,
+    val logoPrimaryColor: Int? = null,
+    val logoSecondaryColor: Int? = null,
+    val watermarkTimestamp: Boolean = true,
+    val watermarkGps: Boolean = false,
+    val watermarkProjectDetails: Boolean = true
 )
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -41,13 +47,19 @@ class SettingsRepository @Inject constructor(
     private val amoledModeKey = booleanPreferencesKey("amoled_mode")
     private val colorSchemeKey = stringPreferencesKey("color_scheme")
     private val flashModeKey = stringPreferencesKey("default_flash_mode")
+    private val companyLogoUriKey = stringPreferencesKey("company_logo_uri")
+    private val logoPrimaryColorKey = intPreferencesKey("logo_primary_color")
+    private val logoSecondaryColorKey = intPreferencesKey("logo_secondary_color")
+    private val watermarkTimestampKey = booleanPreferencesKey("watermark_timestamp")
+    private val watermarkGpsKey = booleanPreferencesKey("watermark_gps")
+    private val watermarkProjectDetailsKey = booleanPreferencesKey("watermark_project_details")
 
     val themeSettings: Flow<ThemeSettings> = context.dataStore.data.map { preferences ->
-        val themeName = preferences[themeKey] ?: AppTheme.SYSTEM.name
+        val themeName = preferences[themeKey] ?: AppTheme.DARK.name
         val appTheme = try {
             AppTheme.valueOf(themeName)
         } catch (e: Exception) {
-            AppTheme.SYSTEM
+            AppTheme.DARK
         }
 
         val colorSchemeName = preferences[colorSchemeKey] ?: ColorSchemeOption.INDUSTRIAL.name
@@ -57,11 +69,11 @@ class SettingsRepository @Inject constructor(
             ColorSchemeOption.INDUSTRIAL
         }
 
-        val flashModeName = preferences[flashModeKey] ?: FlashModeOption.AUTO.name
+        val flashModeName = preferences[flashModeKey] ?: FlashModeOption.OFF.name
         val flashModeOption = try {
             FlashModeOption.valueOf(flashModeName)
         } catch (e: Exception) {
-            FlashModeOption.AUTO
+            FlashModeOption.OFF
         }
 
         ThemeSettings(
@@ -69,7 +81,13 @@ class SettingsRepository @Inject constructor(
             useDynamicColor = preferences[dynamicColorKey] ?: false,
             amoledMode = preferences[amoledModeKey] ?: false,
             colorSchemeOption = colorSchemeOption,
-            defaultFlashMode = flashModeOption
+            defaultFlashMode = flashModeOption,
+            companyLogoUri = preferences[companyLogoUriKey],
+            logoPrimaryColor = preferences[logoPrimaryColorKey],
+            logoSecondaryColor = preferences[logoSecondaryColorKey],
+            watermarkTimestamp = preferences[watermarkTimestampKey] ?: true,
+            watermarkGps = preferences[watermarkGpsKey] ?: false,
+            watermarkProjectDetails = preferences[watermarkProjectDetailsKey] ?: true
         )
     }
 
@@ -102,6 +120,46 @@ class SettingsRepository @Inject constructor(
     suspend fun setDefaultFlashMode(option: FlashModeOption) {
         context.dataStore.edit { preferences ->
             preferences[flashModeKey] = option.name
+        }
+    }
+
+    suspend fun setWatermarkTimestamp(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[watermarkTimestampKey] = enabled
+        }
+    }
+
+    suspend fun setWatermarkGps(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[watermarkGpsKey] = enabled
+        }
+    }
+
+    suspend fun setWatermarkProjectDetails(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[watermarkProjectDetailsKey] = enabled
+        }
+    }
+
+    suspend fun setCompanyLogo(uri: String?, primaryColor: Int?, secondaryColor: Int?) {
+        context.dataStore.edit { preferences ->
+            if (uri != null) {
+                preferences[companyLogoUriKey] = uri
+            } else {
+                preferences.remove(companyLogoUriKey)
+            }
+
+            if (primaryColor != null) {
+                preferences[logoPrimaryColorKey] = primaryColor
+            } else {
+                preferences.remove(logoPrimaryColorKey)
+            }
+
+            if (secondaryColor != null) {
+                preferences[logoSecondaryColorKey] = secondaryColor
+            } else {
+                preferences.remove(logoSecondaryColorKey)
+            }
         }
     }
 }

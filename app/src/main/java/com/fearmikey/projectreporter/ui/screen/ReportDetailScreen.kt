@@ -36,6 +36,7 @@ import com.fearmikey.projectreporter.data.entity.PhotoEntity
 import com.fearmikey.projectreporter.data.model.ExportFormat
 import com.fearmikey.projectreporter.data.model.ExportOptions
 import com.fearmikey.projectreporter.ui.component.CameraPreview
+import com.fearmikey.projectreporter.ui.component.EditProjectDialog
 import com.fearmikey.projectreporter.ui.viewmodel.ReportViewModel
 import com.fearmikey.projectreporter.ui.viewmodel.SettingsViewModel
 import java.io.File
@@ -45,6 +46,10 @@ import java.util.Locale
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import kotlinx.coroutines.launch
 
 sealed class ReportItem {
@@ -86,6 +91,10 @@ fun ReportDetailScreen(
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     val isSelectionMode = selectedIds.isNotEmpty()
 
+    BackHandler(enabled = isSelectionMode) {
+        selectedIds = emptySet()
+    }
+
     LaunchedEffect(Unit) {
         viewModel.pdfExportResult.collect { result ->
             val message = if (result.isSuccess) "PDF exported to Downloads" else "Export failed: ${result.exceptionOrNull()?.message}"
@@ -100,6 +109,7 @@ fun ReportDetailScreen(
     var showCamera by remember { mutableStateOf(false) }
     var showNoteDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var showEditProjectDialog by remember { mutableStateOf(false) }
     var noteToEdit by remember { mutableStateOf<NoteEntity?>(null) }
     var photoToView by remember { mutableStateOf<PhotoEntity?>(null) }
     val gridState = rememberLazyGridState()
@@ -143,6 +153,12 @@ fun ReportDetailScreen(
                                 Icon(Icons.Default.Delete, contentDescription = "Delete")
                             }
                         } else {
+                            IconButton(
+                                onClick = { showEditProjectDialog = true },
+                                enabled = project != null
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit Project")
+                            }
                             IconButton(onClick = { 
                                 // Enter selection mode manually
                                 if (reportItems.isNotEmpty()) {
@@ -171,18 +187,20 @@ fun ReportDetailScreen(
                 ) {
                     ExtendedFloatingActionButton(
                         onClick = { showCamera = true },
-                        icon = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
-                        text = { Text("Take Photo") },
+                        icon = { Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(24.dp)) },
+                        text = { Text("Take Photo", fontWeight = FontWeight.Bold) },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
+                        elevation = FloatingActionButtonDefaults.elevation(8.dp),
                         modifier = Modifier.width(160.dp)
                     )
                     ExtendedFloatingActionButton(
                         onClick = { showNoteDialog = true },
-                        icon = { Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null) },
-                        text = { Text("Take Note") },
+                        icon = { Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(24.dp)) },
+                        text = { Text("Take Note", fontWeight = FontWeight.Bold) },
                         containerColor = MaterialTheme.colorScheme.secondary,
                         contentColor = MaterialTheme.colorScheme.onSecondary,
+                        elevation = FloatingActionButtonDefaults.elevation(8.dp),
                         modifier = Modifier.width(160.dp)
                     )
                 }
@@ -261,12 +279,16 @@ fun ReportDetailScreen(
                     .zIndex(1f)
             ) {
                 CameraScreen(
-                    onPhotoCaptured = { uri ->
-                        viewModel.addPhoto(uri.toString())
+                    onPhotoCaptured = { uri, annotation ->
+                        viewModel.addPhoto(uri.toString(), annotation)
                         showCamera = false
                     },
                     onClose = { showCamera = false },
-                    defaultFlashMode = themeSettings.defaultFlashMode
+                    defaultFlashMode = themeSettings.defaultFlashMode,
+                    watermarkTimestamp = themeSettings.watermarkTimestamp,
+                    watermarkGps = themeSettings.watermarkGps,
+                    watermarkProjectDetails = themeSettings.watermarkProjectDetails,
+                    projectName = project?.projectName ?: ""
                 )
             }
         }
@@ -305,6 +327,21 @@ fun ReportDetailScreen(
             onConfirm = { options ->
                 viewModel.exportReport(options)
                 showExportDialog = false
+            }
+        )
+    }
+
+    if (showEditProjectDialog && project != null) {
+        EditProjectDialog(
+            project = project!!,
+            onDismiss = { showEditProjectDialog = false },
+            onConfirm = { _, newId, newName, newEngineer, onResult ->
+                viewModel.updateProject(newId, newName, newEngineer) { success ->
+                    if (success) {
+                        showEditProjectDialog = false
+                    }
+                    onResult(success)
+                }
             }
         )
     }
@@ -539,21 +576,58 @@ fun AddNoteDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var content by remember { mutableStateOf(initialContent) }
+    var textFieldValue by remember { 
+        mutableStateOf(TextFieldValue(text = initialContent, selection = TextRange(initialContent.length)))
+    }
+
+    val insertMarkdown = { prefix: String ->
+        val text = textFieldValue.text
+        val selectionStart = textFieldValue.selection.start
+        
+        // Find the start of the current line
+        val lineStart = text.lastIndexOf('\n', selectionStart - 1).let { if (it == -1) 0 else it + 1 }
+        
+        val newText = text.substring(0, lineStart) + prefix + text.substring(lineStart)
+        val newCursor = selectionStart + prefix.length
+        
+        textFieldValue = TextFieldValue(text = newText, selection = TextRange(newCursor))
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initialContent.isEmpty()) "Add Note" else "Edit Note") },
         text = {
-            OutlinedTextField(
-                value = content,
-                onValueChange = { content = it },
-                label = { Text("Note content") },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp)
-            )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Formatting toolbar
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    IconButton(
+                        onClick = { insertMarkdown("- ") },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).size(36.dp)
+                    ) {
+                        Icon(Icons.Default.FormatListBulleted, contentDescription = "Bullet List", modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(
+                        onClick = { insertMarkdown("1. ") },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).size(36.dp)
+                    ) {
+                        Icon(Icons.Default.FormatListNumbered, contentDescription = "Numbered List", modifier = Modifier.size(20.dp))
+                    }
+                }
+                
+                OutlinedTextField(
+                    value = textFieldValue,
+                    onValueChange = { textFieldValue = it },
+                    label = { Text("Note content") },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 250.dp),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+                )
+            }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(content) }) {
+            Button(onClick = { onConfirm(textFieldValue.text) }) {
                 Text("Save")
             }
         },
@@ -700,13 +774,21 @@ fun PhotoDetailDialog(
 
 @Composable
 fun CameraScreen(
-    onPhotoCaptured: (Uri) -> Unit,
+    onPhotoCaptured: (Uri, String) -> Unit,
     onClose: () -> Unit,
-    defaultFlashMode: com.fearmikey.projectreporter.data.repository.FlashModeOption
+    defaultFlashMode: com.fearmikey.projectreporter.data.repository.FlashModeOption,
+    watermarkTimestamp: Boolean = true,
+    watermarkGps: Boolean = false,
+    watermarkProjectDetails: Boolean = true,
+    projectName: String = ""
 ) {
     CameraPreview(
         onPhotoCaptured = onPhotoCaptured,
         onClose = onClose,
-        defaultFlashMode = defaultFlashMode
+        defaultFlashMode = defaultFlashMode,
+        watermarkTimestamp = watermarkTimestamp,
+        watermarkGps = watermarkGps,
+        watermarkProjectDetails = watermarkProjectDetails,
+        projectName = projectName
     )
 }

@@ -1,17 +1,29 @@
 package com.fearmikey.projectreporter.ui.screen
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -19,11 +31,15 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.palette.graphics.Palette
+import coil.compose.AsyncImage
 import com.fearmikey.projectreporter.data.repository.AppTheme
 import com.fearmikey.projectreporter.data.repository.ColorSchemeOption
 import com.fearmikey.projectreporter.data.repository.FlashModeOption
 import com.fearmikey.projectreporter.ui.viewmodel.SettingsViewModel
 import android.os.Build
+import java.io.File
+import java.io.FileOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,11 +49,44 @@ fun SettingsScreen(
 ) {
     val themeSettings by viewModel.themeSettings.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     
     var showThemeDialog by remember { mutableStateOf(false) }
     var showColorSchemeDialog by remember { mutableStateOf(false) }
     var showFlashModeDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
+
+    val logoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+
+                if (bitmap != null) {
+                    val palette = Palette.from(bitmap).generate()
+                    val primaryColor = palette.getVibrantColor(
+                        palette.getDominantColor(palette.getMutedColor(0xFF1E88E5.toInt()))
+                    )
+                    val secondaryColor = palette.getLightVibrantColor(
+                        palette.getDarkVibrantColor(palette.getLightMutedColor(primaryColor))
+                    )
+
+                    val logoFile = File(context.filesDir, "company_logo.png")
+                    val outStream = FileOutputStream(logoFile)
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, outStream)
+                    outStream.close()
+
+                    val savedUri = Uri.fromFile(logoFile).toString()
+                    viewModel.updateCompanyLogo(savedUri, primaryColor, secondaryColor)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -58,7 +107,11 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 // Appearance Section
                 Text(
                     text = "Appearance",
@@ -99,6 +152,86 @@ fun SettingsScreen(
                         Switch(
                             checked = themeSettings.amoledMode,
                             onCheckedChange = { viewModel.setAmoledMode(it) }
+                        )
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // Company Branding Section
+                Text(
+                    text = "Company Branding",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                ListItem(
+                    headlineContent = { Text("Company Logo & Colors") },
+                    supportingContent = {
+                        Text(if (themeSettings.companyLogoUri != null) "Logo set (Custom theme extracted)" else "Upload logo to auto-theme the app")
+                    },
+                    leadingContent = {
+                        if (themeSettings.companyLogoUri != null) {
+                            AsyncImage(
+                                model = themeSettings.companyLogoUri,
+                                contentDescription = "Company Logo",
+                                modifier = Modifier.size(36.dp).clip(MaterialTheme.shapes.small),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Icon(Icons.Default.Business, contentDescription = null)
+                        }
+                    },
+                    trailingContent = {
+                        Row {
+                            IconButton(onClick = { logoPickerLauncher.launch("image/*") }) {
+                                Icon(Icons.Default.Upload, contentDescription = "Upload Logo")
+                            }
+                            if (themeSettings.companyLogoUri != null) {
+                                IconButton(onClick = { viewModel.updateCompanyLogo(null, null, null) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove Logo", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // Photo Watermarks Section
+                Text(
+                    text = "Photo Watermarks",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                ListItem(
+                    headlineContent = { Text("Timestamp Watermark") },
+                    supportingContent = { Text("Burn date and time onto captured photos") },
+                    trailingContent = {
+                        Switch(
+                            checked = themeSettings.watermarkTimestamp,
+                            onCheckedChange = { viewModel.setWatermarkTimestamp(it) }
+                        )
+                    }
+                )
+                ListItem(
+                    headlineContent = { Text("GPS Location Watermark") },
+                    supportingContent = { Text("Burn latitude & longitude coordinates onto photos") },
+                    trailingContent = {
+                        Switch(
+                            checked = themeSettings.watermarkGps,
+                            onCheckedChange = { viewModel.setWatermarkGps(it) }
+                        )
+                    }
+                )
+                ListItem(
+                    headlineContent = { Text("Project Details Watermark") },
+                    supportingContent = { Text("Burn project name onto captured photos") },
+                    trailingContent = {
+                        Switch(
+                            checked = themeSettings.watermarkProjectDetails,
+                            onCheckedChange = { viewModel.setWatermarkProjectDetails(it) }
                         )
                     }
                 )

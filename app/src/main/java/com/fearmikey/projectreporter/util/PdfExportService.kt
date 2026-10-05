@@ -217,7 +217,8 @@ class PdfExportService @Inject constructor(
             pdfDocument.finishPage(page)
 
             // Save to MediaStore
-            val fileName = "Report_${project.projectId}_${System.currentTimeMillis()}.pdf"
+            val idPart = project.displayProjectNumber?.let { "_$it" } ?: ""
+            val fileName = "Report${idPart}_${System.currentTimeMillis()}.pdf"
             val contentValues = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
                 put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
@@ -277,7 +278,8 @@ class PdfExportService @Inject constructor(
         // Project Info (only on page 1)
         if (pageNumber == 1) {
             canvas.drawText("SITE SERVICE REPORT", margin, 70f, titlePaint)
-            canvas.drawText("Project: ${project.projectName} (${project.projectId})", margin, 95f, subTitlePaint)
+            val projectLabel = project.displayProjectNumber?.let { "Project: ${project.projectName} ($it)" } ?: "Project: ${project.projectName}"
+            canvas.drawText(projectLabel, margin, 95f, subTitlePaint)
             canvas.drawText("Engineer: ${project.engineerName}", margin, 115f, subTitlePaint)
             val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(project.timestamp))
             canvas.drawText("Date: $dateStr", pageInfo.pageWidth - margin - subTitlePaint.measureText("Date: $dateStr"), 115f, subTitlePaint)

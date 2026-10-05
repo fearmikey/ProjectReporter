@@ -12,4 +12,7 @@ data class ProjectEntity(
     val engineerName: String,
     val isDeleted: Boolean = false,
     val deletedTimestamp: Long? = null
-)
+) {
+    val displayProjectNumber: String?
+        get() = if (projectId.startsWith("proj_")) null else projectId
+}

@@ -11,7 +11,9 @@ import javax.inject.Singleton
 
 interface ReportRepository {
     fun getAllProjects(): Flow<List<ProjectEntity>>
-    suspend fun getProjectById(projectId: String): ProjectEntity?
+    fun getProjectById(projectId: String): Flow<ProjectEntity?>
+    suspend fun getProjectByIdDirect(projectId: String): ProjectEntity?
+    suspend fun updateProjectDetails(oldId: String, newId: String, newName: String, newEngineer: String): Boolean
     suspend fun insertProject(project: ProjectEntity)
     suspend fun softDeleteProject(project: ProjectEntity)
     suspend fun restoreProject(project: ProjectEntity)
@@ -50,8 +52,22 @@ class ReportRepositoryImpl @Inject constructor(
 ) : ReportRepository {
     override fun getAllProjects(): Flow<List<ProjectEntity>> = reportDao.getAllProjects()
 
-    override suspend fun getProjectById(projectId: String): ProjectEntity? =
+    override fun getProjectById(projectId: String): Flow<ProjectEntity?> =
         reportDao.getProjectById(projectId)
+
+    override suspend fun getProjectByIdDirect(projectId: String): ProjectEntity? =
+        reportDao.getProjectByIdDirect(projectId)
+
+    override suspend fun updateProjectDetails(oldId: String, newId: String, newName: String, newEngineer: String): Boolean {
+        if (oldId != newId) {
+            val existing = reportDao.getProjectByIdDirect(newId)
+            if (existing != null) {
+                return false
+            }
+        }
+        reportDao.updateProjectDetails(oldId, newId, newName, newEngineer)
+        return true
+    }
 
     override suspend fun insertProject(project: ProjectEntity) =
         reportDao.insertProject(project)
