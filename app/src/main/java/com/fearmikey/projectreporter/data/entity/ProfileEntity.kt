@@ -7,5 +7,9 @@ import androidx.room.PrimaryKey
 data class ProfileEntity(
     @PrimaryKey
     val id: Int = 0, // Singleton profile
-    val engineerName: String
+    val engineerName: String,
+    val engineerPhone: String = "",
+    val company: String = "",
+    val role: String = "",
+    val logoUri: String? = null
 )

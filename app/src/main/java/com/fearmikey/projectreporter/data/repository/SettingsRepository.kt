@@ -33,7 +33,8 @@ data class ThemeSettings(
     val logoSecondaryColor: Int? = null,
     val watermarkTimestamp: Boolean = true,
     val watermarkGps: Boolean = false,
-    val watermarkProjectDetails: Boolean = true
+    val watermarkProjectDetails: Boolean = true,
+    val highContrast: Boolean = false
 )
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -53,6 +54,7 @@ class SettingsRepository @Inject constructor(
     private val watermarkTimestampKey = booleanPreferencesKey("watermark_timestamp")
     private val watermarkGpsKey = booleanPreferencesKey("watermark_gps")
     private val watermarkProjectDetailsKey = booleanPreferencesKey("watermark_project_details")
+    private val highContrastKey = booleanPreferencesKey("high_contrast")
 
     val themeSettings: Flow<ThemeSettings> = context.dataStore.data.map { preferences ->
         val themeName = preferences[themeKey] ?: AppTheme.DARK.name
@@ -87,7 +89,8 @@ class SettingsRepository @Inject constructor(
             logoSecondaryColor = preferences[logoSecondaryColorKey],
             watermarkTimestamp = preferences[watermarkTimestampKey] ?: true,
             watermarkGps = preferences[watermarkGpsKey] ?: false,
-            watermarkProjectDetails = preferences[watermarkProjectDetailsKey] ?: true
+            watermarkProjectDetails = preferences[watermarkProjectDetailsKey] ?: true,
+            highContrast = preferences[highContrastKey] ?: false
         )
     }
 
@@ -108,6 +111,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setAmoledMode(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[amoledModeKey] = enabled
+        }
+    }
+
+    suspend fun setHighContrast(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[highContrastKey] = enabled
         }
     }
 

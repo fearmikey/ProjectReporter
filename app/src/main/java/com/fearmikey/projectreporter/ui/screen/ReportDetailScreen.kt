@@ -1,8 +1,15 @@
 package com.fearmikey.projectreporter.ui.screen
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -37,19 +44,18 @@ import com.fearmikey.projectreporter.data.model.ExportFormat
 import com.fearmikey.projectreporter.data.model.ExportOptions
 import com.fearmikey.projectreporter.ui.component.CameraPreview
 import com.fearmikey.projectreporter.ui.component.EditProjectDialog
+import com.fearmikey.projectreporter.ui.component.NoteEditorDialog
+import com.fearmikey.projectreporter.ui.component.NoteFormatter
+import com.fearmikey.projectreporter.ui.component.PhotoDetailDialog
+import com.fearmikey.projectreporter.ui.theme.StatusBarContentFor
 import com.fearmikey.projectreporter.ui.viewmodel.ReportViewModel
 import com.fearmikey.projectreporter.ui.viewmodel.SettingsViewModel
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.ui.focus.onFocusEvent
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.Brush
 import kotlinx.coroutines.launch
 
 sealed class ReportItem {
@@ -74,31 +80,67 @@ sealed class ReportItem {
 fun ReportDetailScreen(
     projectId: String,
     onBack: () -> Unit,
+    onRecycleBinClick: (projectId: String) -> Unit = {},
     viewModel: ReportViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val project by viewModel.project.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
     val notes by viewModel.notes.collectAsStateWithLifecycle()
+    val deletedItemCount by viewModel.deletedItemCount.collectAsStateWithLifecycle()
     val themeSettings by settingsViewModel.themeSettings.collectAsStateWithLifecycle()
+    val profile by settingsViewModel.profile.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val reportItems = remember(photos, notes) {
         (photos.map { ReportItem.Photo(it) } + notes.map { ReportItem.Note(it) })
             .sortedByDescending { it.timestamp }
     }
 
+    var isSelectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
-    val isSelectionMode = selectedIds.isNotEmpty()
 
     BackHandler(enabled = isSelectionMode) {
+        isSelectionMode = false
         selectedIds = emptySet()
+    }
+
+    // Entities behind the current selection (ids look like "photo_12" / "note_3").
+    val selectedPhotos = photos.filter { "photo_${it.photoId}" in selectedIds }
+    val selectedNotes = notes.filter { "note_${it.noteId}" in selectedIds }
+
+    /** Soft-deletes items into this project's Recycle Bin and offers an Undo snackbar. */
+    fun moveToRecycleBin(delPhotos: List<PhotoEntity>, delNotes: List<NoteEntity>) {
+        if (delPhotos.isEmpty() && delNotes.isEmpty()) return
+        viewModel.softDeleteItems(delPhotos, delNotes)
+        val message = "${describeItems(delPhotos.size, delNotes.size).replaceFirstChar { it.uppercase() }} moved to Recycle Bin"
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = "Undo",
+                withDismissAction = true,
+                duration = SnackbarDuration.Long
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.restoreItems(delPhotos, delNotes)
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
         viewModel.pdfExportResult.collect { result ->
-            val message = if (result.isSuccess) "PDF exported to Downloads" else "Export failed: ${result.exceptionOrNull()?.message}"
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            // Let the NotificationService handle the notification now
+            // But we can optionally show an error Toast if it fails
+            if (result.isFailure) {
+                Toast.makeText(context, "Export failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+            } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                // Notification can't be shown, so confirm the export another way.
+                Toast.makeText(context, "Report saved to your Downloads folder", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -109,13 +151,36 @@ fun ReportDetailScreen(
     var showCamera by remember { mutableStateOf(false) }
     var showNoteDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
+
+    // Android 13+ requires runtime permission to post the "export complete" notification.
+    // Ask when the user starts an export; open the dialog regardless of the answer.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { showExportDialog = true }
+    val onExportClick = {
+        val needsPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        if (needsPermission) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            showExportDialog = true
+        }
+    }
     var showEditProjectDialog by remember { mutableStateOf(false) }
     var noteToEdit by remember { mutableStateOf<NoteEntity?>(null) }
-    var photoToView by remember { mutableStateOf<PhotoEntity?>(null) }
+    // Tracked by id so the viewer always shows the latest saved note.
+    var photoIdToView by rememberSaveable { mutableStateOf<Long?>(null) }
+    val photoToView = photoIdToView?.let { id -> photos.find { it.photoId == id } }
     val gridState = rememberLazyGridState()
+
+    StatusBarContentFor(
+        if (isSelectionMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary
+    )
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = {
@@ -127,29 +192,28 @@ fun ReportDetailScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = {
-                            if (isSelectionMode) selectedIds = emptySet()
-                            else onBack()
+                            if (isSelectionMode) {
+                                isSelectionMode = false
+                                selectedIds = emptySet()
+                            } else onBack()
                         }) {
                             Icon(
                                 if (isSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back"
+                                contentDescription = if (isSelectionMode) "Clear selection" else "Back"
                             )
                         }
                     },
                     actions = {
                         if (isSelectionMode) {
                             IconButton(onClick = {
-                                selectedIds.forEach { id ->
-                                    if (id.startsWith("photo_")) {
-                                        val photoId = id.removePrefix("photo_").toLong()
-                                        photos.find { it.photoId == photoId }?.let { viewModel.softDeletePhoto(it) }
-                                    } else {
-                                        val noteId = id.removePrefix("note_").toLong()
-                                        notes.find { it.noteId == noteId }?.let { viewModel.softDeleteNote(it) }
-                                    }
-                                }
-                                selectedIds = emptySet()
+                                selectedIds = reportItems.map { it.id }.toSet()
                             }) {
+                                Icon(Icons.Default.SelectAll, contentDescription = "Select all")
+                            }
+                            IconButton(
+                                onClick = { showDeleteConfirm = true },
+                                enabled = selectedIds.isNotEmpty()
+                            ) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete")
                             }
                         } else {
@@ -160,14 +224,25 @@ fun ReportDetailScreen(
                                 Icon(Icons.Default.Edit, contentDescription = "Edit Project")
                             }
                             IconButton(onClick = { 
-                                // Enter selection mode manually
                                 if (reportItems.isNotEmpty()) {
-                                    selectedIds = setOf(reportItems.first().id)
+                                    isSelectionMode = true
+                                    selectedIds = emptySet()
                                 }
                             }) {
                                 Icon(Icons.Default.Checklist, contentDescription = "Select")
                             }
-                            IconButton(onClick = { showExportDialog = true }) {
+                            IconButton(onClick = { onRecycleBinClick(project?.projectId ?: projectId) }) {
+                                BadgedBox(
+                                    badge = {
+                                        if (deletedItemCount > 0) {
+                                            Badge { Text(if (deletedItemCount > 99) "99+" else deletedItemCount.toString()) }
+                                        }
+                                    }
+                                ) {
+                                    Icon(Icons.Default.DeleteSweep, contentDescription = "Recycle Bin")
+                                }
+                            }
+                            IconButton(onClick = onExportClick) {
                                 Icon(Icons.Default.Share, contentDescription = "Export PDF")
                             }
                         }
@@ -225,22 +300,34 @@ fun ReportDetailScreen(
                             is ReportItem.Photo -> PhotoGridItem(
                                 photo = item.photo,
                                 isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
                                 onToggleSelect = {
-                                    selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
+                                    if (!isSelectionMode) {
+                                        isSelectionMode = true
+                                        selectedIds = setOf(item.id)
+                                    } else {
+                                        selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
+                                    }
                                 },
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
                                     } else {
-                                        photoToView = item.photo
+                                        photoIdToView = item.photo.photoId
                                     }
                                 }
                             )
                             is ReportItem.Note -> NoteGridItem(
                                 note = item.note,
                                 isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
                                 onToggleSelect = {
-                                    selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
+                                    if (!isSelectionMode) {
+                                        isSelectionMode = true
+                                        selectedIds = setOf(item.id)
+                                    } else {
+                                        selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
+                                    }
                                 },
                                 onClick = {
                                     if (isSelectionMode) {
@@ -295,29 +382,75 @@ fun ReportDetailScreen(
     }
 
     if (showNoteDialog) {
-        AddNoteDialog(
-            initialContent = noteToEdit?.content ?: "",
-            onDismiss = {
-                showNoteDialog = false
-                noteToEdit = null
-            },
-            onConfirm = { content ->
-                if (noteToEdit != null) {
-                    viewModel.updateNote(noteToEdit!!, content)
+        val editingNote = noteToEdit
+        val closeNoteDialog = {
+            showNoteDialog = false
+            noteToEdit = null
+        }
+        NoteEditorDialog(
+            initialContent = editingNote?.content ?: "",
+            createdAt = editingNote?.timestamp,
+            onDismiss = closeNoteDialog,
+            onSave = { content ->
+                if (editingNote != null) {
+                    viewModel.updateNote(editingNote, content)
                 } else {
                     viewModel.addNote(content)
                 }
-                showNoteDialog = false
-                noteToEdit = null
+                closeNoteDialog()
+            },
+            onDelete = editingNote?.let { note ->
+                {
+                    closeNoteDialog()
+                    moveToRecycleBin(emptyList(), listOf(note))
+                }
             }
         )
     }
 
-    if (photoToView != null) {
+    if (showDeleteConfirm) {
+        val description = describeItems(selectedPhotos.size, selectedNotes.size)
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            icon = { Icon(Icons.Default.Delete, contentDescription = null) },
+            title = { Text("Delete $description?") },
+            text = {
+                val single = selectedPhotos.size + selectedNotes.size == 1
+                Text(
+                    if (single) "It'll be moved to this report's Recycle Bin, where you can restore it for 30 days."
+                    else "They'll be moved to this report's Recycle Bin, where you can restore them for 30 days."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        moveToRecycleBin(selectedPhotos, selectedNotes)
+                        selectedIds = emptySet()
+                        isSelectionMode = false
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    photoToView?.let { photo ->
         PhotoDetailDialog(
-            photo = photoToView!!,
-            onDismiss = { photoToView = null },
-            onUpdateAnnotation = { viewModel.updateAnnotation(photoToView!!, it) }
+            photo = photo,
+            onDismiss = { photoIdToView = null },
+            onSaveNote = { viewModel.updateAnnotation(photo, it) },
+            onDelete = {
+                photoIdToView = null
+                moveToRecycleBin(listOf(photo), emptyList())
+            }
         )
     }
 
@@ -334,9 +467,10 @@ fun ReportDetailScreen(
     if (showEditProjectDialog && project != null) {
         EditProjectDialog(
             project = project!!,
+            role = profile?.role ?: "",
             onDismiss = { showEditProjectDialog = false },
-            onConfirm = { _, newId, newName, newEngineer, onResult ->
-                viewModel.updateProject(newId, newName, newEngineer) { success ->
+            onConfirm = { _, newId, newName, newEngineer, newEngineerPhone, newClientCompany, newPoc, newPhoneNumber, newNotes, onResult ->
+                viewModel.updateProject(newId, newName, newEngineer, newEngineerPhone, newClientCompany, newPoc, newPhoneNumber, newNotes) { success ->
                     if (success) {
                         showEditProjectDialog = false
                     }
@@ -345,6 +479,15 @@ fun ReportDetailScreen(
             }
         )
     }
+}
+
+/** e.g. "2 photos and 1 note", "1 photo", "3 notes". */
+private fun describeItems(photoCount: Int, noteCount: Int): String {
+    val parts = buildList {
+        if (photoCount > 0) add(if (photoCount == 1) "1 photo" else "$photoCount photos")
+        if (noteCount > 0) add(if (noteCount == 1) "1 note" else "$noteCount notes")
+    }
+    return parts.joinToString(" and ").ifEmpty { "0 items" }
 }
 
 @Composable
@@ -415,7 +558,9 @@ fun ExportOptionsDialog(
         },
         confirmButton = {
             Button(onClick = {
-                onConfirm(ExportOptions(format, photosPerPage, includeNotes, includeTimestamp))
+                // Photos-per-page is a PDF-only option (hidden for Word), so don't leak a stale choice
+                val perPage = if (format == ExportFormat.PDF) photosPerPage else 1
+                onConfirm(ExportOptions(format, perPage, includeNotes, includeTimestamp))
             }) {
                 Text("Export")
             }
@@ -470,6 +615,7 @@ fun VerticalScrollbar(
 fun PhotoGridItem(
     photo: PhotoEntity,
     isSelected: Boolean,
+    isSelectionMode: Boolean,
     onToggleSelect: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -489,47 +635,97 @@ fun PhotoGridItem(
         )
         
         if (photo.annotation.isNotBlank()) {
-            Icon(
-                Icons.AutoMirrored.Filled.Notes,
-                contentDescription = "Has Note",
-                tint = Color.White,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(4.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                    .padding(2.dp)
-                    .size(16.dp)
-            )
-        } else {
-            Icon(
-                Icons.Default.EditNote,
-                contentDescription = "Add Note",
-                tint = Color.White.copy(alpha = 0.6f),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(4.dp)
-                    .size(16.dp)
+            PhotoNoteIndicator(
+                note = photo.annotation,
+                modifier = Modifier.matchParentSize()
             )
         }
 
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White.copy(alpha = 0.4f))
+        if (isSelectionMode) {
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White.copy(alpha = 0.4f))
+                )
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp)
+                        .background(Color.White, CircleShape)
+                        .clip(CircleShape)
+                )
+            } else {
+                Icon(
+                    Icons.Default.RadioButtonUnchecked,
+                    contentDescription = "Not selected",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp)
+                        .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                        .padding(2.dp)
+                        .size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * High-visibility marker for photos that carry a note: a bold badge in the top-end corner
+ * plus a one-line preview of the note over a dark gradient along the bottom edge.
+ */
+@Composable
+private fun PhotoNoteIndicator(note: String, modifier: Modifier = Modifier) {
+    val preview = remember(note) { notePreview(note) }
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))
+                )
+                .padding(start = 6.dp, end = 6.dp, top = 18.dp, bottom = 5.dp)
+        ) {
+            Text(
+                text = preview,
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+        }
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            border = BorderStroke(1.5.dp, Color.White),
+            shadowElevation = 4.dp,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(6.dp)
+                .size(28.dp)
+        ) {
             Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(4.dp)
-                    .background(Color.White, CircleShape)
-                    .clip(CircleShape)
+                Icons.AutoMirrored.Filled.Notes,
+                contentDescription = "Has note",
+                modifier = Modifier.padding(5.dp)
             )
         }
     }
+}
+
+/** First non-blank line of a note with any list marker ("- ", "1. ", "☐ ") stripped. */
+private fun notePreview(note: String): String {
+    val line = note.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+    val prefix = NoteFormatter.parsePrefix(line)
+    return if (prefix != null) line.substring(prefix.length).trim() else line
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -537,6 +733,7 @@ fun PhotoGridItem(
 fun NoteGridItem(
     note: NoteEntity,
     isSelected: Boolean,
+    isSelectionMode: Boolean,
     onToggleSelect: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -552,221 +749,33 @@ fun NoteGridItem(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = note.content,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            val dateStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(note.timestamp))
-            Text(
-                text = "Note • $dateStr",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.secondary
-            )
-        }
-    }
-}
-
-@Composable
-fun AddNoteDialog(
-    initialContent: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var textFieldValue by remember { 
-        mutableStateOf(TextFieldValue(text = initialContent, selection = TextRange(initialContent.length)))
-    }
-
-    val insertMarkdown = { prefix: String ->
-        val text = textFieldValue.text
-        val selectionStart = textFieldValue.selection.start
-        
-        // Find the start of the current line
-        val lineStart = text.lastIndexOf('\n', selectionStart - 1).let { if (it == -1) 0 else it + 1 }
-        
-        val newText = text.substring(0, lineStart) + prefix + text.substring(lineStart)
-        val newCursor = selectionStart + prefix.length
-        
-        textFieldValue = TextFieldValue(text = newText, selection = TextRange(newCursor))
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initialContent.isEmpty()) "Add Note" else "Edit Note") },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Formatting toolbar
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    IconButton(
-                        onClick = { insertMarkdown("- ") },
-                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).size(36.dp)
-                    ) {
-                        Icon(Icons.Default.FormatListBulleted, contentDescription = "Bullet List", modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(
-                        onClick = { insertMarkdown("1. ") },
-                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).size(36.dp)
-                    ) {
-                        Icon(Icons.Default.FormatListNumbered, contentDescription = "Numbered List", modifier = Modifier.size(20.dp))
-                    }
-                }
-                
-                OutlinedTextField(
-                    value = textFieldValue,
-                    onValueChange = { textFieldValue = it },
-                    label = { Text("Note content") },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 250.dp),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = note.content,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                val dateStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(note.timestamp))
+                Text(
+                    text = "Note • $dateStr",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary
                 )
             }
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(textFieldValue.text) }) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable
-fun PhotoDetailDialog(
-    photo: PhotoEntity,
-    onDismiss: () -> Unit,
-    onUpdateAnnotation: (String) -> Unit
-) {
-    var annotation by remember { mutableStateOf(photo.annotation) }
-    val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-
-    // Auto-scroll to bottom when keyboard opens or text grows
-    LaunchedEffect(annotation) {
-        if (scrollState.maxValue > 0) {
-            scrollState.animateScrollTo(scrollState.maxValue)
-        }
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.Black
-        ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .imePadding()
-                        .verticalScroll(scrollState)
-                ) {
-                    // Top Controls
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                        }
-                        Text(
-                            "Photo Detail",
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(end = 48.dp)
-                        )
-                    }
-
-                    // Photo Area
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = this@BoxWithConstraints.maxHeight * 0.65f), // Ensure notes section "peeks" on tall images
-                        contentAlignment = Alignment.TopCenter
-                    ) {
-                        AsyncImage(
-                            model = photo.imageUri,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxWidth(),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
-
-                    // Bottom Annotation Area
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1C)),
-                        shape = MaterialTheme.shapes.large,
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "Captured: ${photo.timestampOverlay}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.6f)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TextField(
-                                value = annotation,
-                                onValueChange = {
-                                    annotation = it
-                                    onUpdateAnnotation(it)
-                                },
-                                label = { Text("Site Observations", color = Color.White.copy(alpha = 0.7f)) },
-                                placeholder = { Text("Add site notes here...", color = Color.White.copy(alpha = 0.4f)) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .bringIntoViewRequester(bringIntoViewRequester)
-                                    .onFocusEvent { focusState ->
-                                        if (focusState.isFocused) {
-                                            coroutineScope.launch {
-                                                bringIntoViewRequester.bringIntoView()
-                                            }
-                                        }
-                                    },
-                                minLines = 3,
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-                                colors = TextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                                    unfocusedContainerColor = Color.White.copy(alpha = 0.03f),
-                                    cursorColor = MaterialTheme.colorScheme.primary,
-                                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedIndicatorColor = Color.White.copy(alpha = 0.3f),
-                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
-                                )
-                            )
-                        }
-                    }
-                    // Add extra padding at the bottom to ensure the card isn't cut off by the keyboard
-                    Spacer(modifier = Modifier.height(24.dp).navigationBarsPadding())
-                }
+            if (isSelectionMode) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = if (isSelected) "Selected" else "Not selected",
+                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }

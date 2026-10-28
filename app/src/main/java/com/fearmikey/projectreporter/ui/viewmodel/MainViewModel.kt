@@ -34,6 +34,11 @@ class MainViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    /** Total number of reports currently in the Recycle Bin. */
+    val deletedItemCount: StateFlow<Int> = repository.getDeletedProjects()
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     val profileState: StateFlow<ProfileState> = repository.getProfileFlow()
         .map { ProfileState.Success(it) }
         .stateIn(
@@ -49,41 +54,61 @@ class MainViewModel @Inject constructor(
             initialValue = null
         )
 
-    fun saveProfile(name: String) {
+    fun saveProfile(name: String, phone: String = "", company: String = "", role: String = "") {
         viewModelScope.launch {
-            repository.insertProfile(ProfileEntity(engineerName = name))
+            repository.insertProfile(ProfileEntity(engineerName = name, engineerPhone = phone, company = company, role = role))
         }
     }
 
-    fun createProject(id: String, name: String, engineer: String) {
+    fun createProject(id: String, name: String, engineer: String, engineerPhone: String = "", clientCompany: String = "", poc: String = "", phoneNumber: String = "", notes: String = "") {
         viewModelScope.launch {
             val project = ProjectEntity(
                 projectId = id,
                 projectName = name,
                 timestamp = System.currentTimeMillis(),
-                engineerName = engineer
+                engineerName = engineer,
+                engineerPhone = engineerPhone,
+                clientCompany = clientCompany,
+                poc = poc,
+                phoneNumber = phoneNumber,
+                notes = notes
             )
             repository.insertProject(project)
         }
     }
 
-    fun updateProject(oldId: String, newId: String, newName: String, newEngineer: String, onResult: (Boolean) -> Unit) {
+    fun updateProject(oldId: String, newId: String, newName: String, newEngineer: String, engineerPhone: String = "", clientCompany: String = "", poc: String = "", phoneNumber: String = "", notes: String = "", onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
-            val success = repository.updateProjectDetails(oldId, newId, newName, newEngineer)
+            val success = repository.updateProjectDetails(oldId, newId, newName, newEngineer, engineerPhone, clientCompany, poc, phoneNumber, notes)
             onResult(success)
         }
     }
 
     fun checkProjectExists(projectId: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
-            val exists = repository.getProjectByIdDirect(projectId) != null
-            onResult(exists)
+            // Must include projects in the Recycle Bin: inserting over one (REPLACE) would
+            // cascade-delete its photos and notes.
+            onResult(repository.isProjectIdInUse(projectId))
         }
     }
 
     fun softDeleteProject(project: ProjectEntity) {
         viewModelScope.launch {
             repository.softDeleteProject(project)
+        }
+    }
+
+    /** Moves projects (with their photos and notes) to the Recycle Bin. */
+    fun softDeleteProjects(projects: List<ProjectEntity>) {
+        viewModelScope.launch {
+            projects.forEach { repository.softDeleteProject(it) }
+        }
+    }
+
+    /** Restores projects previously moved to the Recycle Bin (used by the "Undo" snackbar). */
+    fun restoreProjects(projects: List<ProjectEntity>) {
+        viewModelScope.launch {
+            projects.forEach { repository.restoreProject(it) }
         }
     }
 

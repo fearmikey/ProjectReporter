@@ -22,7 +22,10 @@ object DatabaseModule {
             context,
             ReportDatabase::class.java,
             "report_database"
-        ).fallbackToDestructiveMigration().build()
+        )
+            .addMigrations(ReportDatabase.MIGRATION_4_5, ReportDatabase.MIGRATION_5_6)
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides

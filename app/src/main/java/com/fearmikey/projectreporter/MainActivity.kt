@@ -112,7 +112,7 @@ class MainActivity : ComponentActivity() {
                                 ProfileSetupScreen(
                                     onProfileCreated = {
                                         navController.navigate(Screen.Dashboard.route) {
-                                            popUpTo(Screen.Onboarding.route) { inclusive = true }
+                                            popUpTo(Screen.Dashboard.route) { inclusive = true }
                                         }
                                     }
                                 )
@@ -126,14 +126,26 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate(Screen.Settings.route)
                                 },
                                 onRecycleBinClick = {
-                                    navController.navigate(Screen.RecycleBin.route)
+                                    navController.navigate(Screen.RecycleBin.createRoute())
                                 }
                             )
                             }
                             composable(Screen.Settings.route) {
-                            SettingsScreen(onBack = { navController.popBackStack() })
-                        }
-                        composable(Screen.RecycleBin.route) {
+                                SettingsScreen(
+                                    onBack = { navController.popBackStack() },
+                                    onReopenOnboarding = {
+                                        navController.navigate(Screen.Onboarding.route)
+                                    }
+                                )
+                            }
+                        composable(
+                            route = Screen.RecycleBin.route,
+                            arguments = listOf(navArgument("projectId") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            })
+                        ) {
                             RecycleBinScreen(onBack = { navController.popBackStack() })
                         }
                             composable(
@@ -143,7 +155,10 @@ class MainActivity : ComponentActivity() {
                                 val projectId = backStackEntry.arguments?.getString("projectId") ?: return@composable
                                 ReportDetailScreen(
                                     projectId = projectId,
-                                    onBack = { navController.popBackStack() }
+                                    onBack = { navController.popBackStack() },
+                                    onRecycleBinClick = { id ->
+                                        navController.navigate(Screen.RecycleBin.createRoute(id))
+                                    }
                                 )
                             }
                         }

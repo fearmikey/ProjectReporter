@@ -10,6 +10,11 @@ data class ProjectEntity(
     val projectName: String,
     val timestamp: Long,
     val engineerName: String,
+    val engineerPhone: String = "",
+    val clientCompany: String = "",
+    val poc: String = "",
+    val phoneNumber: String = "",
+    val notes: String = "",
     val isDeleted: Boolean = false,
     val deletedTimestamp: Long? = null
 ) {

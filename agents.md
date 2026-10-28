@@ -49,7 +49,7 @@ Ensure there are no compilation errors, missing resources, or unresolved depende
 Execute Git version control commands to record the release and trigger F-Droid build indexers:
 1. **Stage files**:
    ```bash
-   git add app/build.gradle.kts CHANGELOG.md README.md AGENTS.md
+   git add app/build.gradle.kts CHANGELOG.md README.md AGENTS.md agents.md
    ```
 2. **Commit changes**:
    ```bash

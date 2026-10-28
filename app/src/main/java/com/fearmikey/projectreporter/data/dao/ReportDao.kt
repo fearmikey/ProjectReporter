@@ -24,8 +24,12 @@ interface ReportDao {
     @Query("SELECT * FROM projects WHERE projectId = :projectId AND isDeleted = 0")
     suspend fun getProjectByIdDirect(projectId: String): ProjectEntity?
 
-    @Query("UPDATE projects SET projectId = :newId, projectName = :newName, engineerName = :newEngineer WHERE projectId = :oldId")
-    suspend fun updateProjectDetails(oldId: String, newId: String, newName: String, newEngineer: String)
+    /** True if any project (active or in the Recycle Bin) uses this id. */
+    @Query("SELECT EXISTS(SELECT 1 FROM projects WHERE projectId = :projectId)")
+    suspend fun projectIdInUse(projectId: String): Boolean
+
+    @Query("UPDATE projects SET projectId = :newId, projectName = :newName, engineerName = :newEngineer, engineerPhone = :engineerPhone, clientCompany = :clientCompany, poc = :poc, phoneNumber = :phoneNumber, notes = :notes WHERE projectId = :oldId")
+    suspend fun updateProjectDetails(oldId: String, newId: String, newName: String, newEngineer: String, engineerPhone: String, clientCompany: String, poc: String, phoneNumber: String, notes: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPhoto(photo: PhotoEntity)
@@ -71,6 +75,18 @@ interface ReportDao {
 
     @Query("SELECT * FROM projects WHERE isDeleted = 1 ORDER BY deletedTimestamp DESC")
     fun getDeletedProjects(): Flow<List<ProjectEntity>>
+
+    @Query("SELECT * FROM photos WHERE projectId = :projectId AND isDeleted = 1 ORDER BY deletedTimestamp DESC")
+    fun getDeletedPhotosForProject(projectId: String): Flow<List<PhotoEntity>>
+
+    @Query("SELECT * FROM notes WHERE projectId = :projectId AND isDeleted = 1 ORDER BY deletedTimestamp DESC")
+    fun getDeletedNotesForProject(projectId: String): Flow<List<NoteEntity>>
+
+    @Query("DELETE FROM photos WHERE projectId = :projectId AND isDeleted = 1")
+    suspend fun purgeDeletedPhotosForProject(projectId: String)
+
+    @Query("DELETE FROM notes WHERE projectId = :projectId AND isDeleted = 1")
+    suspend fun purgeDeletedNotesForProject(projectId: String)
 
     @Query("DELETE FROM photos WHERE isDeleted = 1 AND deletedTimestamp < :threshold")
     suspend fun purgeDeletedPhotos(threshold: Long)

@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
@@ -27,8 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import com.fearmikey.projectreporter.ui.viewmodel.MainViewModel
+import com.fearmikey.projectreporter.util.RoleLabels
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -36,7 +39,30 @@ fun ProfileSetupScreen(
     onProfileCreated: () -> Unit,
     viewModel: MainViewModel = hiltViewModel()
 ) {
+    val currentProfile by viewModel.profile.collectAsStateWithLifecycle()
+
     var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var company by remember { mutableStateOf("") }
+    var role by remember { mutableStateOf("") }
+
+    LaunchedEffect(currentProfile) {
+        currentProfile?.let { p ->
+            if (name.isEmpty() && p.engineerName.isNotBlank()) {
+                name = p.engineerName
+            }
+            if (phone.isEmpty() && p.engineerPhone.isNotBlank()) {
+                phone = p.engineerPhone
+            }
+            if (company.isEmpty() && p.company.isNotBlank()) {
+                company = p.company
+            }
+            if (role.isEmpty() && p.role.isNotBlank()) {
+                role = p.role
+            }
+        }
+    }
+
     val pagerState = rememberPagerState(pageCount = { 3 })
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -57,9 +83,15 @@ fun ProfileSetupScreen(
                 2 -> SetupPage(
                     name = name,
                     onNameChange = { name = it },
+                    phone = phone,
+                    onPhoneChange = { phone = it },
+                    company = company,
+                    onCompanyChange = { company = it },
+                    role = role,
+                    onRoleChange = { role = it },
                     onComplete = {
                         if (name.isNotBlank()) {
-                            viewModel.saveProfile(name)
+                            viewModel.saveProfile(name, phone, company, role)
                             onProfileCreated()
                         }
                     },
@@ -196,13 +228,21 @@ fun FeatureRow(icon: ImageVector, title: String, desc: String) {
 fun SetupPage(
     name: String,
     onNameChange: (String) -> Unit,
+    phone: String = "",
+    onPhoneChange: (String) -> Unit = {},
+    company: String,
+    onCompanyChange: (String) -> Unit,
+    role: String,
+    onRoleChange: (String) -> Unit,
     onComplete: () -> Unit,
     onBuyCoffeeClick: () -> Unit
 ) {
+    val scrollState = androidx.compose.foundation.rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
+            .padding(32.dp)
+            .verticalScroll(scrollState),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -220,16 +260,42 @@ fun SetupPage(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Please set your engineer name to be used in reports.",
+            text = "Set your name and details to be used in reports.",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(32.dp))
         OutlinedTextField(
+            value = role,
+            onValueChange = onRoleChange,
+            label = { Text("Role / Title") },
+            placeholder = { Text("e.g. Inspector, Technician, Engineer") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
-            label = { Text("Engineer Name") },
+            label = { Text(RoleLabels.yourNameLabel(role)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = phone,
+            onValueChange = onPhoneChange,
+            label = { Text(RoleLabels.phoneLabel(role)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = company,
+            onValueChange = onCompanyChange,
+            label = { Text("Company") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )

@@ -13,7 +13,9 @@ interface ReportRepository {
     fun getAllProjects(): Flow<List<ProjectEntity>>
     fun getProjectById(projectId: String): Flow<ProjectEntity?>
     suspend fun getProjectByIdDirect(projectId: String): ProjectEntity?
-    suspend fun updateProjectDetails(oldId: String, newId: String, newName: String, newEngineer: String): Boolean
+    /** True if the id is used by an active project or one in the Recycle Bin. */
+    suspend fun isProjectIdInUse(projectId: String): Boolean
+    suspend fun updateProjectDetails(oldId: String, newId: String, newName: String, newEngineer: String, engineerPhone: String, clientCompany: String, poc: String, phoneNumber: String, notes: String): Boolean
     suspend fun insertProject(project: ProjectEntity)
     suspend fun softDeleteProject(project: ProjectEntity)
     suspend fun restoreProject(project: ProjectEntity)
@@ -44,6 +46,11 @@ interface ReportRepository {
     fun getDeletedNotes(): Flow<List<NoteEntity>>
     fun getDeletedProjects(): Flow<List<ProjectEntity>>
     suspend fun purgeOldDeletedItems(threshold: Long)
+
+    // Per-project Recycle Bin
+    fun getDeletedPhotosForProject(projectId: String): Flow<List<PhotoEntity>>
+    fun getDeletedNotesForProject(projectId: String): Flow<List<NoteEntity>>
+    suspend fun purgeDeletedItemsForProject(projectId: String)
 }
 
 @Singleton
@@ -58,14 +65,15 @@ class ReportRepositoryImpl @Inject constructor(
     override suspend fun getProjectByIdDirect(projectId: String): ProjectEntity? =
         reportDao.getProjectByIdDirect(projectId)
 
-    override suspend fun updateProjectDetails(oldId: String, newId: String, newName: String, newEngineer: String): Boolean {
-        if (oldId != newId) {
-            val existing = reportDao.getProjectByIdDirect(newId)
-            if (existing != null) {
-                return false
-            }
+    override suspend fun isProjectIdInUse(projectId: String): Boolean =
+        reportDao.projectIdInUse(projectId)
+
+    override suspend fun updateProjectDetails(oldId: String, newId: String, newName: String, newEngineer: String, engineerPhone: String, clientCompany: String, poc: String, phoneNumber: String, notes: String): Boolean {
+        // Include projects in the Recycle Bin: their ids are still taken (primary key).
+        if (oldId != newId && reportDao.projectIdInUse(newId)) {
+            return false
         }
-        reportDao.updateProjectDetails(oldId, newId, newName, newEngineer)
+        reportDao.updateProjectDetails(oldId, newId, newName, newEngineer, engineerPhone, clientCompany, poc, phoneNumber, notes)
         return true
     }
 
@@ -139,5 +147,16 @@ class ReportRepositoryImpl @Inject constructor(
         reportDao.purgeDeletedPhotos(threshold)
         reportDao.purgeDeletedNotes(threshold)
         reportDao.purgeDeletedProjects(threshold)
+    }
+
+    override fun getDeletedPhotosForProject(projectId: String): Flow<List<PhotoEntity>> =
+        reportDao.getDeletedPhotosForProject(projectId)
+
+    override fun getDeletedNotesForProject(projectId: String): Flow<List<NoteEntity>> =
+        reportDao.getDeletedNotesForProject(projectId)
+
+    override suspend fun purgeDeletedItemsForProject(projectId: String) {
+        reportDao.purgeDeletedPhotosForProject(projectId)
+        reportDao.purgeDeletedNotesForProject(projectId)
     }
 }

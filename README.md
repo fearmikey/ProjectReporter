@@ -7,10 +7,13 @@ Project Reporter is an Android application designed for site engineers to docume
 - Project Management: Organize and edit site visits by project ID, name, and engineer details.
 - Multimedia Documentation: Capture and attach photos directly to project reports with configurable photo watermarks (Timestamp, GPS, Project Details).
 - Custom Branding: Company logo upload support with dynamic color scheme extraction using AndroidX Palette.
-- Annotation: Add detailed notes to specific project entries.
-- Export Capabilities: Generate professional PDF and Word (.docx) reports for sharing and archival.
+- Annotation & Rich Notes: Add detailed notes with interactive bullet lists, numbered lists, checklists, and undo/redo support.
+- Export Capabilities & Notifications: Generate professional PDF and Word (.docx) reports with completion notifications and quick download folder access.
+- Data Backup & Restore: Full JSON and media ZIP export/import for complete cross-device data backup.
+- Flexible Role Customization: Role-aware field labeling tailored for engineers, site inspectors, architects, or custom titles.
 - Data Persistence: Local database storage using Room for offline access.
-- User Profiles: Maintain engineer information for consistent report headers.
+- User Profiles: Maintain inspector information for consistent report headers.
+- Accessible Dynamic Themes: Custom Material 3 theme engine with WCAG 2.x AA/AAA color contrast validation, High Contrast mode, and AMOLED dark mode.
 - Recycle Bin: Safety mechanism for deleted reports.
 - Optimized Performance: Memory-cached image loading with Coil, lifecycle-aware state collection, and predictive back navigation support.
 

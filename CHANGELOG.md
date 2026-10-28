@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-10-28
+### Added
+- Complete JSON & media backup and restore service (`BackupService`) with ZIP import/export.
+- Interactive plain-text note editor with bullet lists, numbered lists, checklists, smart continuation, and multi-level Undo/Redo (`NoteFormatter`, `NoteEditingControls`).
+- System notifications for completed report exports with file opening and Downloads folder launcher (`NotificationService`, `OpenDownloadsActivity`).
+- Flexible role-aware field labels (`RoleLabels`) for custom engineer and inspector roles.
+- Accessible Material 3 dynamic color contrast calculation engine (`ColorContrast`) supporting WCAG 2.x AA/AAA contrast ratios, High Contrast mode, and AMOLED dark theme.
+
+### Improved
+- PDF and Word export services with company branding, accessible color contrast checks, and styled note lists (`ReportBranding`).
+- Enhanced settings screen and profile setup UI with role selection, backup controls, and theme contrast settings.
+- Expanded database schema and repository layer supporting project branding metadata and role customizations.
+
 ## [1.4.0] - 2026-08-31
 ### Added
 - `AGENTS.md` specifying F-Droid release workflow, build verification, and version control standards.

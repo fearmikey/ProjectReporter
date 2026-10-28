@@ -7,7 +7,9 @@ import com.fearmikey.projectreporter.data.entity.PhotoEntity
 import com.fearmikey.projectreporter.data.entity.ProjectEntity
 import com.fearmikey.projectreporter.data.model.ExportFormat
 import com.fearmikey.projectreporter.data.model.ExportOptions
+import com.fearmikey.projectreporter.data.model.ReportBranding
 import com.fearmikey.projectreporter.data.repository.ReportRepository
+import com.fearmikey.projectreporter.data.repository.SettingsRepository
 import com.fearmikey.projectreporter.util.PdfExportService
 import com.fearmikey.projectreporter.util.WordExportService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,8 +24,10 @@ import javax.inject.Inject
 @HiltViewModel
 class ReportViewModel @Inject constructor(
     private val repository: ReportRepository,
+    private val settingsRepository: SettingsRepository,
     private val pdfExportService: PdfExportService,
-    private val wordExportService: WordExportService
+    private val wordExportService: WordExportService,
+    private val notificationService: com.fearmikey.projectreporter.util.NotificationService
 ) : ViewModel() {
 
     private val _projectId = MutableStateFlow<String?>(null)
@@ -52,14 +56,25 @@ class ReportViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Number of this project's photos/notes currently in the Recycle Bin. */
+    val deletedItemCount: StateFlow<Int> = _projectId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(0)
+            else combine(
+                repository.getDeletedPhotosForProject(id),
+                repository.getDeletedNotesForProject(id)
+            ) { photos, notes -> photos.size + notes.size }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     fun setProjectId(id: String) {
         _projectId.value = id
     }
 
-    fun updateProject(newId: String, newName: String, newEngineer: String, onResult: (Boolean) -> Unit) {
+    fun updateProject(newId: String, newName: String, newEngineer: String, engineerPhone: String = "", clientCompany: String = "", poc: String = "", phoneNumber: String = "", notes: String = "", onResult: (Boolean) -> Unit) {
         val oldId = _projectId.value ?: return
         viewModelScope.launch {
-            val success = repository.updateProjectDetails(oldId, newId, newName, newEngineer)
+            val success = repository.updateProjectDetails(oldId, newId, newName, newEngineer, engineerPhone, clientCompany, poc, phoneNumber, notes)
             if (success && oldId != newId) {
                 _projectId.value = newId
             }
@@ -114,17 +129,51 @@ class ReportViewModel @Inject constructor(
         }
     }
 
+    /** Moves the given photos and notes to the Recycle Bin. */
+    fun softDeleteItems(photos: List<PhotoEntity>, notes: List<NoteEntity>) {
+        viewModelScope.launch {
+            photos.forEach { repository.softDeletePhoto(it) }
+            notes.forEach { repository.softDeleteNote(it) }
+        }
+    }
+
+    /** Restores items previously moved to the Recycle Bin (used by the "Undo" snackbar). */
+    fun restoreItems(photos: List<PhotoEntity>, notes: List<NoteEntity>) {
+        viewModelScope.launch {
+            photos.forEach { repository.restorePhoto(it) }
+            notes.forEach { repository.restoreNote(it) }
+        }
+    }
+
     fun exportReport(options: ExportOptions = ExportOptions()) {
         val currentProject = project.value ?: return
         val currentPhotos = photos.value
         val currentNotes = notes.value
         viewModelScope.launch {
+            val branding = loadBranding()
             val result = if (options.format == ExportFormat.PDF) {
-                pdfExportService.exportToPdf(currentProject, currentPhotos, currentNotes, options)
+                pdfExportService.exportToPdf(currentProject, currentPhotos, currentNotes, options, branding)
             } else {
-                wordExportService.exportToDocx(currentProject, currentPhotos, currentNotes, options)
+                wordExportService.exportToDocx(currentProject, currentPhotos, currentNotes, options, branding)
             }
-            _pdfExportResult.emit(result)
+            
+            result.onSuccess { uri ->
+                notificationService.showExportCompleteNotification(uri, options.format)
+            }
+            
+            _pdfExportResult.emit(result.map { })
         }
+    }
+
+    private suspend fun loadBranding(): ReportBranding {
+        val settings = runCatching { settingsRepository.themeSettings.first() }.getOrNull()
+        val profile = runCatching { repository.getProfile() }.getOrNull()
+        return ReportBranding(
+            companyName = profile?.company.orEmpty(),
+            logoUri = settings?.companyLogoUri ?: profile?.logoUri,
+            primaryColor = settings?.logoPrimaryColor,
+            secondaryColor = settings?.logoSecondaryColor,
+            preparedByRole = profile?.role.orEmpty()
+        )
     }
 }

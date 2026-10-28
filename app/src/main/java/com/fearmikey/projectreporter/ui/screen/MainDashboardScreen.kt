@@ -5,6 +5,9 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.*
@@ -22,8 +25,11 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.fearmikey.projectreporter.data.entity.ProjectEntity
 import com.fearmikey.projectreporter.ui.component.EditProjectDialog
+import com.fearmikey.projectreporter.ui.theme.StatusBarContentFor
 import com.fearmikey.projectreporter.ui.viewmodel.MainViewModel
 import com.fearmikey.projectreporter.ui.viewmodel.SettingsViewModel
+import com.fearmikey.projectreporter.util.RoleLabels
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,17 +45,52 @@ fun MainDashboardScreen(
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val themeSettings by settingsViewModel.themeSettings.collectAsStateWithLifecycle()
+    val deletedItemCount by viewModel.deletedItemCount.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     var showDialog by remember { mutableStateOf(false) }
     var projectToEdit by remember { mutableStateOf<ProjectEntity?>(null) }
 
+    var isSelectionMode by remember { mutableStateOf(false) }
     var selectedProjectIds by remember { mutableStateOf(setOf<String>()) }
-    val isSelectionMode = selectedProjectIds.isNotEmpty()
 
     BackHandler(enabled = isSelectionMode) {
+        isSelectionMode = false
         selectedProjectIds = emptySet()
     }
 
+    val selectedProjects = projects.filter { it.projectId in selectedProjectIds }
+
+    /** Soft-deletes projects into the Recycle Bin and offers an Undo snackbar. */
+    fun moveToRecycleBin(toDelete: List<ProjectEntity>) {
+        if (toDelete.isEmpty()) return
+        viewModel.softDeleteProjects(toDelete)
+        val message = if (toDelete.size == 1) {
+            "\"${toDelete.first().projectName}\" moved to Recycle Bin"
+        } else {
+            "${toDelete.size} reports moved to Recycle Bin"
+        }
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = "Undo",
+                withDismissAction = true,
+                duration = SnackbarDuration.Long
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.restoreProjects(toDelete)
+            }
+        }
+    }
+
+    StatusBarContentFor(
+        if (isSelectionMode) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary
+    )
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -74,7 +115,10 @@ fun MainDashboardScreen(
                 },
                 navigationIcon = {
                     if (isSelectionMode) {
-                        IconButton(onClick = { selectedProjectIds = emptySet() }) {
+                        IconButton(onClick = {
+                            isSelectionMode = false
+                            selectedProjectIds = emptySet()
+                        }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear selection")
                         }
                     }
@@ -89,23 +133,35 @@ fun MainDashboardScreen(
                             }
                         }
                         IconButton(onClick = {
-                            selectedProjectIds.forEach { id ->
-                                projects.find { it.projectId == id }?.let { viewModel.softDeleteProject(it) }
-                            }
-                            selectedProjectIds = emptySet()
+                            selectedProjectIds = projects.map { it.projectId }.toSet()
                         }) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "Select all")
+                        }
+                        IconButton(
+                            onClick = { showDeleteConfirm = true },
+                            enabled = selectedProjectIds.isNotEmpty()
+                        ) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
                     } else {
                         IconButton(onClick = {
                             if (projects.isNotEmpty()) {
-                                selectedProjectIds = setOf(projects.first().projectId)
+                                isSelectionMode = true
+                                selectedProjectIds = emptySet()
                             }
                         }) {
                             Icon(Icons.Default.Checklist, contentDescription = "Select")
                         }
                         IconButton(onClick = onRecycleBinClick) {
-                            Icon(Icons.Default.DeleteSweep, contentDescription = "Recycle Bin")
+                            BadgedBox(
+                                badge = {
+                                    if (deletedItemCount > 0) {
+                                        Badge { Text(if (deletedItemCount > 99) "99+" else deletedItemCount.toString()) }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = "Recycle Bin")
+                            }
                         }
                         IconButton(onClick = onSettingsClick) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -150,7 +206,9 @@ fun MainDashboardScreen(
                     val isSelected = selectedProjectIds.contains(project.projectId)
                     ProjectCard(
                         project = project,
+                        role = profile?.role ?: "",
                         isSelected = isSelected,
+                        isSelectionMode = isSelectionMode,
                         onClick = {
                             if (isSelectionMode) {
                                 selectedProjectIds = if (isSelected) selectedProjectIds - project.projectId else selectedProjectIds + project.projectId
@@ -159,7 +217,12 @@ fun MainDashboardScreen(
                             }
                         },
                         onLongClick = {
-                            selectedProjectIds = selectedProjectIds + project.projectId
+                            if (!isSelectionMode) {
+                                isSelectionMode = true
+                                selectedProjectIds = setOf(project.projectId)
+                            } else {
+                                selectedProjectIds = if (isSelected) selectedProjectIds - project.projectId else selectedProjectIds + project.projectId
+                            }
                         },
                         onEditClick = {
                             projectToEdit = project
@@ -169,13 +232,56 @@ fun MainDashboardScreen(
             }
         }
 
+        if (showDeleteConfirm) {
+            val single = selectedProjects.size == 1
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                icon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                title = {
+                    Text(
+                        if (single) "Delete \"${selectedProjects.first().projectName}\"?"
+                        else "Delete ${selectedProjects.size} reports?"
+                    )
+                },
+                text = {
+                    Text(
+                        if (single) {
+                            "This report and all its photos and notes will be moved to the Recycle Bin, where you can restore it for 30 days."
+                        } else {
+                            "These reports and all their photos and notes will be moved to the Recycle Bin, where you can restore them for 30 days."
+                        }
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            moveToRecycleBin(selectedProjects)
+                            selectedProjectIds = emptySet()
+                            isSelectionMode = false
+                            showDeleteConfirm = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         if (showDialog) {
             CreateProjectDialog(
                 initialEngineerName = profile?.engineerName ?: "",
+                initialEngineerPhone = profile?.engineerPhone ?: "",
+                role = profile?.role ?: "",
                 onDismiss = { showDialog = false },
                 onCheckExists = { checkId, callback -> viewModel.checkProjectExists(checkId, callback) },
-                onConfirm = { id, name, engineer ->
-                    viewModel.createProject(id, name, engineer)
+                onConfirm = { id, name, engineer, engPhone, client, poc, phone, notes ->
+                    viewModel.createProject(id, name, engineer, engPhone, client, poc, phone, notes)
                     showDialog = false
                     onProjectClick(id)
                 }
@@ -185,9 +291,10 @@ fun MainDashboardScreen(
         projectToEdit?.let { project ->
             EditProjectDialog(
                 project = project,
+                role = profile?.role ?: "",
                 onDismiss = { projectToEdit = null },
-                onConfirm = { oldId, newId, newName, newEngineer, onResult ->
-                    viewModel.updateProject(oldId, newId, newName, newEngineer) { success ->
+                onConfirm = { oldId, newId, newName, newEngineer, newEngineerPhone, newClientCompany, newPoc, newPhone, newNotes, onResult ->
+                    viewModel.updateProject(oldId, newId, newName, newEngineer, newEngineerPhone, newClientCompany, newPoc, newPhone, newNotes) { success ->
                         if (success) {
                             if (selectedProjectIds.contains(oldId)) {
                                 selectedProjectIds = (selectedProjectIds - oldId) + newId
@@ -247,7 +354,9 @@ fun EmptyDashboard(
 @Composable
 fun ProjectCard(
     project: ProjectEntity,
+    role: String = "",
     isSelected: Boolean,
+    isSelectionMode: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onEditClick: () -> Unit
@@ -277,7 +386,23 @@ fun ProjectCard(
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
                     )
-                    if (!isSelected) {
+                    if (isSelectionMode) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Selected",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.RadioButtonUnchecked,
+                                contentDescription = "Not selected",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    } else {
                         IconButton(
                             onClick = onEditClick,
                             modifier = Modifier.size(32.dp)
@@ -303,7 +428,7 @@ fun ProjectCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Eng: ${project.engineerName}",
+                        text = "${RoleLabels.cardPrefix(role)}: ${project.engineerName}",
                         style = MaterialTheme.typography.bodySmall
                     )
                     val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(project.timestamp))
@@ -313,16 +438,6 @@ fun ProjectCard(
                     )
                 }
             }
-            if (isSelected) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                )
-            }
         }
     }
 }
@@ -330,20 +445,27 @@ fun ProjectCard(
 @Composable
 fun CreateProjectDialog(
     initialEngineerName: String,
+    initialEngineerPhone: String = "",
+    role: String = "",
     onDismiss: () -> Unit,
     onCheckExists: (String, (Boolean) -> Unit) -> Unit,
-    onConfirm: (String, String, String) -> Unit
+    onConfirm: (String, String, String, String, String, String, String, String) -> Unit
 ) {
     var id by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var engineer by remember { mutableStateOf(initialEngineerName) }
+    var engineerPhone by remember { mutableStateOf(initialEngineerPhone) }
+    var clientCompany by remember { mutableStateOf("") }
+    var poc by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("New Site Report") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
                     value = id,
                     onValueChange = {
@@ -364,11 +486,48 @@ fun CreateProjectDialog(
                     singleLine = true
                 )
                 OutlinedTextField(
-                    value = engineer,
-                    onValueChange = { engineer = it },
-                    label = { Text("Engineer Name") },
+                    value = clientCompany,
+                    onValueChange = { clientCompany = it },
+                    label = { Text("Client Company") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
+                )
+                OutlinedTextField(
+                    value = poc,
+                    onValueChange = { poc = it },
+                    label = { Text("Point of Contact (POC)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = { Text("POC Phone Number") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+                )
+                OutlinedTextField(
+                    value = engineer,
+                    onValueChange = { engineer = it },
+                    label = { Text(RoleLabels.nameLabel(role)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = engineerPhone,
+                    onValueChange = { engineerPhone = it },
+                    label = { Text(RoleLabels.phoneLabel(role)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+                )
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Notes (e.g. Visitor access)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
                 )
             }
         },
@@ -382,14 +541,14 @@ fun CreateProjectDialog(
                         if (trimmedId.isNotBlank()) {
                             onCheckExists(trimmedId) { exists ->
                                 if (exists) {
-                                    errorMessage = "Project Number already exists"
+                                    errorMessage = "Project Number already in use (check the Recycle Bin too)"
                                 } else {
-                                    onConfirm(trimmedId, trimmedName, trimmedEngineer)
+                                    onConfirm(trimmedId, trimmedName, trimmedEngineer, engineerPhone.trim(), clientCompany.trim(), poc.trim(), phoneNumber.trim(), notes.trim())
                                 }
                             }
                         } else {
                             val autoId = "proj_${UUID.randomUUID()}"
-                            onConfirm(autoId, trimmedName, trimmedEngineer)
+                            onConfirm(autoId, trimmedName, trimmedEngineer, engineerPhone.trim(), clientCompany.trim(), poc.trim(), phoneNumber.trim(), notes.trim())
                         }
                     }
                 },
