@@ -1,75 +1,41 @@
-# AGENTS.md — F-Droid Release Workflow Guidelines
+# Project Reporter - Guidelines for AI Agents & Developers
 
-This document outlines instructions and standard operating procedures for AI agents and developers maintaining and releasing **Project Reporter** for **F-Droid**.
+## CRITICAL ARCHITECTURAL CONSTRAINTS
 
----
+### 1. STRICT 100% FOSS POLICY (F-DROID COMPLIANCE)
+* **Zero Proprietary SDKs:** Project Reporter is strictly Free and Open Source Software (FOSS), targeted for distribution on F-Droid and other open-source Android repositories.
+* **FORBIDDEN DEPENDENCIES:**
+  * **NO** Google Play Services (`com.google.android.gms:*`)
+  * **NO** Google Mobile Ads / AdMob (`com.google.android.gms:play-services-ads`)
+  * **NO** Google Play Billing (`com.android.billingclient:*`)
+  * **NO** ML Kit or closed-source vision/speech SDKs (`com.google.mlkit:*`)
+  * **NO** Firebase SDKs that pull in non-free binaries or Play Services requirements
+  * **NO** Analytics, tracking, or proprietary telemetry libraries
+* **ALLOWED DEPENDENCIES:**
+  * Android Jetpack libraries (`androidx.*`)
+  * Kotlin standard/coroutines/serialization libraries
+  * Open-source third-party dependencies with permissive/copyleft FOSS licenses (Apache 2.0, MIT, BSD, GPL, MPL)
+* **NO PRODUCT FLAVORS FOR PROPRIETARY PLUGINS:** Do not add product flavor dimensions or build variants that rely on non-free or Google Play-specific dependencies.
 
-## 1. F-Droid Compliance & Open Source Rules
+### 2. PRIVACY & OFFLINE FIRST
+* The application must remain fully functional offline.
+* All user data (projects, reports, photos, notes, inspector profiles, templates, backups) must stay local on device or sync via user-configured open backup/restore options (e.g., local JSON/ZIP export).
 
-- **Strict FOSS Compliance**: All dependencies in `app/build.gradle.kts` and `gradle/libs.versions.toml` must remain 100% Free and Open Source Software (FOSS). Do not include proprietary SDKs, closed-source tracking/analytics, or non-FOSS binaries.
-- **Reproducible Builds**: Maintain clean build configs using Android Gradle Plugin (AGP), Kotlin, and Gradle wrapper. Ensure no local path dependencies exist in `build.gradle.kts` files.
-- **Licensing**: Ensure all source files and assets comply with open-source license terms.
+## RELEASE & PUBLISHING WORKFLOW (F-DROID)
 
----
+### AUTOMATED F-DROID UPDATES
+The app is published on F-Droid with Reproducible Builds enabled and auto-update tracking via Git tags. When helping the user create a new release, agents **MUST** follow this exact workflow to ensure F-Droid successfully picks up the update:
 
-## 2. Release Workflow Protocol
-
-When tasked with preparing or executing a release for F-Droid, execute the following steps in sequence:
-
-### Step 1: Bump Application Version
-In `app/build.gradle.kts`:
-- Increment `versionCode` by `1` (e.g., `4` → `5`).
-- Update `versionName` adhering to Semantic Versioning (`MAJOR.MINOR.PATCH`, e.g., `"1.3.0"` → `"1.4.0"`).
-
-### Step 2: Update Changelog
-In `CHANGELOG.md`:
-- Insert a new release section header at the top under `# Changelog`:
-  ```markdown
-  ## [X.Y.Z] - YYYY-MM-DD
-  ```
-- Categorize changes using standard headings:
-  - `### Added`: New user-facing features or developer tooling.
-  - `### Changed`: Modifications to existing features or configurations.
-  - `### Fixed`: Bug fixes.
-  - `### Improved`: Refactorings, UI enhancements, or performance optimizations.
-
-### Step 3: Update README
-In `README.md`:
-- Update feature highlights or technical stack descriptions if new libraries or capabilities were added in the release.
-- Ensure all version-dependent documentation remains accurate.
-
-### Step 4: Verify Build Quality
-Before committing, execute Gradle tasks to confirm build integrity:
-```bash
-./gradlew clean assembleRelease
-```
-Ensure there are no compilation errors, missing resources, or unresolved dependencies.
-
-### Step 5: Git Commit, Tag, and Push
-Execute Git version control commands to record the release and trigger F-Droid build indexers:
-1. **Stage files**:
-   ```bash
-   git add app/build.gradle.kts CHANGELOG.md README.md AGENTS.md agents.md
-   ```
-2. **Commit changes**:
-   ```bash
-   git commit -m "Bump version to X.Y.Z: Summary of key changes"
-   ```
-3. **Tag release**:
-   ```bash
-   git tag -a vX.Y.Z -m "Release vX.Y.Z"
-   ```
-4. **Push commits and tags to GitHub**:
-   ```bash
-   git push origin master --tags
-   ```
-
----
-
-## 3. Quick Reference Commands
-
-| Task | Command |
-| :--- | :--- |
-| **Clean Build** | `./gradlew clean` |
-| **Build Release APK** | `./gradlew app:assembleRelease` |
-| **Git Push Release** | `git push origin master --tags` |
+1. **Bump Versions:** Update `versionCode` and `versionName` in `app/build.gradle.kts`.
+2. **Reproducible Build Configuration:** Ensure `vcsInfo { include = false }` is present in `app/build.gradle.kts` under `buildTypes.release`. This prevents AGP from embedding local Git commit metadata in `META-INF/version-control-info.textproto`, which breaks F-Droid reproducible build verification.
+3. **Fastlane Changelog:** Create a new text file at `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` containing the concise release notes.
+4. **Standard Changelog & Readme:** Update the main `CHANGELOG.md` with detailed bullet points under `## [X.Y.Z] - YYYY-MM-DD` and update the version badge in `README.md`.
+5. **F-Droid Metadata Recipe:** Update `fdroid/com.fearmikey.projectreporter.yml`:
+   * Update `versionName` and `versionCode`.
+   * Update `commit` with the full 40-character Git commit hash (`git rev-parse HEAD`).
+   * Ensure `gradle:` is set to `- yes` (do NOT use `- foss` as product flavors were removed).
+6. **Commit & Tag:** Commit all changes, create a git tag strictly following the `vX.Y.Z` format (e.g., `v1.5.1`), and push both the commit and the tag to GitHub.
+7. **Reproducible Build Binary:** F-Droid requires the compiled APK to verify reproducible builds. Instruct the user to:
+   * Build the signed release APK (`app-release.apk`) using their secure `ProjectReporter-Release.jks` keystore.
+   * Go to GitHub Releases, draft a new release for the newly pushed `vX.Y.Z` tag.
+   * Upload the `app-release.apk` file.

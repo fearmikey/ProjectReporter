@@ -1,0 +1,13 @@
+Project Reporter is a privacy-focused, offline-first Android application designed for site engineers, inspectors, architects, and field managers to document site visits efficiently.
+
+Key Features:
+* Project Management: Organize site visits by project ID, project name, and inspector details.
+* Photo Documentation & Watermarking: Capture and attach site photos with optional JPEG watermarking (timestamp, GPS coordinates, project details) while preserving EXIF metadata.
+* Rich Notes & Formatting: Add detailed field notes with interactive bullet lists, numbered lists, checklists, smart continuation, and multi-level undo/redo.
+* Custom Branding: Upload your company logo with dynamic color scheme extraction.
+* Professional Exports: Export reports directly as PDF or Word (.docx) documents with completion notifications and quick download access.
+* Complete Backup & Restore: Export and import complete JSON and media ZIP archives for offline data migration.
+* Role Customization: Role-aware field labeling tailored for engineers, site inspectors, architects, or custom titles.
+* Accessible Themes: Material 3 dynamic color theme engine with WCAG AA/AAA contrast options, High Contrast mode, and AMOLED dark theme.
+* Recycle Bin: Built-in safety bin for deleted report recovery.
+* 100% Offline & Private: All data stays local on your device.

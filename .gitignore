@@ -1,18 +1,18 @@
 *.iml
 .gradle
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
 .DS_Store
+/.idea/
 /build
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+.artifacts/
 .kotlin/
 app/release/
-.artifacts/
+
+# Signing keys must NEVER be committed
+*.jks
+*.keystore
+keystore.properties

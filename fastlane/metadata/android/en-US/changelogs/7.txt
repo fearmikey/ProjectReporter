@@ -1,0 +1,4 @@
+- Added in-place JPEG photo watermarking (timestamp, GPS, project details).
+- Added app-wide tactile haptic feedback for report and bin operations.
+- Fixed photo retention during camera capture flow.
+- Optimized PDF and Word report generation.
