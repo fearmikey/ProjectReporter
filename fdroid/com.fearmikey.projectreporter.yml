@@ -2,12 +2,12 @@ Categories:
   - Note
   - Writing
 License: MIT
-AuthorName: Michael
+AuthorName: FearMikey
 SourceCode: https://github.com/fearmikey/ProjectReporter
 IssueTracker: https://github.com/fearmikey/ProjectReporter/issues
 Changelog: https://github.com/fearmikey/ProjectReporter/blob/master/CHANGELOG.md
 
-AutoName: Project Reporter
+AutoName: ProjectReporter
 
 RepoType: git
 Repo: https://github.com/fearmikey/ProjectReporter.git
