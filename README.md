@@ -1,7 +1,7 @@
-# Project Reporter
+# ProjectReporter
 
 ## Overview
-Project Reporter is an Android application designed for site engineers to document site visits efficiently. It allows users to create project reports, capture photos, add notes, and export the final documentation as PDFs.
+ProjectReporter is an Android application designed for site engineers to document site visits efficiently. It allows users to create project reports, capture photos, add notes, and export the final documentation as PDFs.
 
 ## Key Features
 - Project Management: Organize and edit site visits by project ID, name, and engineer details.
