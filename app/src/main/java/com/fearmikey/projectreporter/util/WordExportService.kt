@@ -18,6 +18,7 @@ import com.fearmikey.projectreporter.data.model.ReportBranding
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.poi.common.usermodel.PictureType
 import org.apache.poi.util.Units
 import org.apache.poi.wp.usermodel.HeaderFooterType
 import org.apache.poi.xwpf.usermodel.*
@@ -182,7 +183,7 @@ class WordExportService @Inject constructor(
                             val scale = min(maxW / image.width, maxH / image.height)
                             imgParagraph.createRun().addPicture(
                                 ByteArrayInputStream(image.bytes),
-                                Document.PICTURE_TYPE_JPEG,
+                                PictureType.JPEG,
                                 "photo_${photo.photoId}.jpg",
                                 Units.toEMU(image.width * scale),
                                 Units.toEMU(image.height * scale)
@@ -266,7 +267,7 @@ class WordExportService @Inject constructor(
             val scale = min(110.0 / logo.width, 32.0 / logo.height)
             leftP.createRun().addPicture(
                 ByteArrayInputStream(logo.bytes),
-                Document.PICTURE_TYPE_PNG,
+                PictureType.PNG,
                 "company_logo.png",
                 Units.toEMU(logo.width * scale),
                 Units.toEMU(logo.height * scale)

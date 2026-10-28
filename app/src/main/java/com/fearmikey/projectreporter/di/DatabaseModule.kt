@@ -24,7 +24,7 @@ object DatabaseModule {
             "report_database"
         )
             .addMigrations(ReportDatabase.MIGRATION_4_5, ReportDatabase.MIGRATION_5_6)
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 

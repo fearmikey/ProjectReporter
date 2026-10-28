@@ -11,6 +11,9 @@ All notable changes to this project will be documented in this file.
 - Camera capture flow and photo details view integrated with automatic watermark processing and haptic confirmation.
 - Dashboard, report details, and Recycle Bin user interactions updated with tactile haptic feedback.
 
+### Fixed
+- Release build deprecation warnings: migrated to Room's `fallbackToDestructiveMigration(dropAllTables = true)` and Apache POI's `PictureType`-based `addPicture` API for Word export images.
+
 ## [1.5.0] - 2026-10-28
 ### Added
 - Complete JSON & media backup and restore service (`BackupService`) with ZIP import/export.
