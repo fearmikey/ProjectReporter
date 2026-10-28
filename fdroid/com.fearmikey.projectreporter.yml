@@ -15,7 +15,7 @@ Repo: https://github.com/fearmikey/ProjectReporter.git
 Builds:
   - versionName: 1.5.2
     versionCode: 8
-    commit: COMMIT_HASH_PENDING
+    commit: ae0d58031d4e4d39081c32e794ee919a89f7075a
     subdir: app
     gradle:
       - yes
