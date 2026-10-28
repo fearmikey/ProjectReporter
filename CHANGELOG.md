@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Release build deprecation warnings: migrated to Room's `fallbackToDestructiveMigration(dropAllTables = true)` and Apache POI's `PictureType`-based `addPicture` API for Word export images.
+- Confirmed camera photos showing as black/blank on the report screen: the camera's dispose cleanup read a stale copy of the pending photo and deleted the file that had just been saved.
 
 ## [1.5.0] - 2026-10-28
 ### Added

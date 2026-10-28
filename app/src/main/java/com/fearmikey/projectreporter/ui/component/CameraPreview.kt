@@ -277,14 +277,17 @@ fun CameraPreview(
     val shutterSound = remember { MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) } }
 
     // Delete an un-confirmed photo if the camera goes away for good (not on rotation).
+    // Reads the snapshot state directly (not via rememberUpdatedState): confirming a photo clears
+    // capturedPhotoUri and closes the camera in the same frame, so this composable is removed
+    // before it recomposes and a rememberUpdatedState copy would still hold the confirmed photo,
+    // deleting the file that was just saved to the report.
     val isDisposed = remember { AtomicBoolean(false) }
-    val latestCapturedUri by rememberUpdatedState(capturedPhotoUri)
     DisposableEffect(Unit) {
         onDispose {
             isDisposed.set(true)
             shutterSound.release()
             if (context.findActivity()?.isChangingConfigurations != true) {
-                latestCapturedUri?.let { deletePhotoFile(it, processingScope) }
+                capturedPhotoUri?.let { deletePhotoFile(it, processingScope) }
             }
         }
     }
