@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.fearmikey.projectreporter.data.entity.ProjectEntity
 import com.fearmikey.projectreporter.ui.component.EditProjectDialog
+import com.fearmikey.projectreporter.ui.component.rememberAppHaptics
 import com.fearmikey.projectreporter.ui.theme.StatusBarContentFor
 import com.fearmikey.projectreporter.ui.viewmodel.MainViewModel
 import com.fearmikey.projectreporter.ui.viewmodel.SettingsViewModel
@@ -48,6 +49,7 @@ fun MainDashboardScreen(
     val deletedItemCount by viewModel.deletedItemCount.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val haptics = rememberAppHaptics()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showDialog by remember { mutableStateOf(false) }
     var projectToEdit by remember { mutableStateOf<ProjectEntity?>(null) }
@@ -66,6 +68,7 @@ fun MainDashboardScreen(
     fun moveToRecycleBin(toDelete: List<ProjectEntity>) {
         if (toDelete.isEmpty()) return
         viewModel.softDeleteProjects(toDelete)
+        haptics.movedToBin()
         val message = if (toDelete.size == 1) {
             "\"${toDelete.first().projectName}\" moved to Recycle Bin"
         } else {
@@ -81,6 +84,7 @@ fun MainDashboardScreen(
             )
             if (result == SnackbarResult.ActionPerformed) {
                 viewModel.restoreProjects(toDelete)
+                haptics.restored()
             }
         }
     }
@@ -134,6 +138,7 @@ fun MainDashboardScreen(
                         }
                         IconButton(onClick = {
                             selectedProjectIds = projects.map { it.projectId }.toSet()
+                            haptics.selectionChanged()
                         }) {
                             Icon(Icons.Default.SelectAll, contentDescription = "Select all")
                         }
@@ -148,6 +153,7 @@ fun MainDashboardScreen(
                             if (projects.isNotEmpty()) {
                                 isSelectionMode = true
                                 selectedProjectIds = emptySet()
+                                haptics.selectionChanged()
                             }
                         }) {
                             Icon(Icons.Default.Checklist, contentDescription = "Select")
@@ -212,6 +218,7 @@ fun MainDashboardScreen(
                         onClick = {
                             if (isSelectionMode) {
                                 selectedProjectIds = if (isSelected) selectedProjectIds - project.projectId else selectedProjectIds + project.projectId
+                                haptics.selectionToggled(!isSelected)
                             } else {
                                 onProjectClick(project.projectId)
                             }

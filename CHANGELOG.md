@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-10-28
+### Added
+- In-place JPEG photo watermarking (`PhotoWatermark`) burning timestamp, project details, and GPS coordinates directly into captured images while preserving camera EXIF metadata.
+- App-wide haptic feedback system (`AppHaptics`) providing tactile responses for multi-selection, bin moves, item restores, and permanent deletions.
+
+### Improved
+- Camera capture flow and photo details view integrated with automatic watermark processing and haptic confirmation.
+- Dashboard, report details, and Recycle Bin user interactions updated with tactile haptic feedback.
+
 ## [1.5.0] - 2026-10-28
 ### Added
 - Complete JSON & media backup and restore service (`BackupService`) with ZIP import/export.

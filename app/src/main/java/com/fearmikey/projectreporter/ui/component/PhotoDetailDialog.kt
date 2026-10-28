@@ -370,8 +370,14 @@ private fun PhotoNoteSummary(note: String, onEdit: () -> Unit) {
     }
 }
 
+/**
+ * Inline photo-note editor (text field, quick inserts and formatting toolbar), shared by the
+ * photo viewer and the camera's post-capture review screen.
+ *
+ * @param autoFocus focus the field and show the keyboard as soon as it appears.
+ */
 @Composable
-private fun PhotoNoteEditor(editor: NoteEditorState) {
+internal fun PhotoNoteEditor(editor: NoteEditorState, autoFocus: Boolean = true) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val dictate = rememberDictation("Describe this photo") { spoken ->
@@ -380,8 +386,10 @@ private fun PhotoNoteEditor(editor: NoteEditorState) {
     }
 
     LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-        keyboard?.show()
+        if (autoFocus) {
+            focusRequester.requestFocus()
+            keyboard?.show()
+        }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 16.dp)) {

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.fearmikey.projectreporter.ui.component.rememberAppHaptics
 import com.fearmikey.projectreporter.ui.viewmodel.DeletedItem
 import com.fearmikey.projectreporter.ui.viewmodel.RecycleBinViewModel
 import kotlinx.coroutines.launch
@@ -43,6 +44,7 @@ fun RecycleBinScreen(
     var itemToDeleteForever by remember { mutableStateOf<DeletedItem?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val haptics = rememberAppHaptics()
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -72,6 +74,7 @@ fun RecycleBinScreen(
                         IconButton(onClick = {
                             val count = deletedItems.size
                             viewModel.restoreAll()
+                            haptics.restored()
                             scope.launch {
                                 snackbarHostState.showSnackbar(
                                     if (count == 1) "1 item restored" else "$count items restored"
@@ -142,6 +145,7 @@ fun RecycleBinScreen(
                         item = item,
                         onRestore = {
                             viewModel.restoreItem(item)
+                            haptics.restored()
                             scope.launch { snackbarHostState.showSnackbar("${item.label} restored") }
                         },
                         onDeletePermanently = { itemToDeleteForever = item }
@@ -168,6 +172,7 @@ fun RecycleBinScreen(
                     Button(
                         onClick = {
                             viewModel.emptyBin()
+                            haptics.deletedPermanently()
                             showEmptyBinDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -201,6 +206,7 @@ fun RecycleBinScreen(
                     Button(
                         onClick = {
                             viewModel.deletePermanently(item)
+                            haptics.deletedPermanently()
                             itemToDeleteForever = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)

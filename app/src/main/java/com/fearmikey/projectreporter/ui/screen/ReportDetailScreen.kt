@@ -46,6 +46,7 @@ import com.fearmikey.projectreporter.ui.component.CameraPreview
 import com.fearmikey.projectreporter.ui.component.EditProjectDialog
 import com.fearmikey.projectreporter.ui.component.NoteEditorDialog
 import com.fearmikey.projectreporter.ui.component.NoteFormatter
+import com.fearmikey.projectreporter.ui.component.rememberAppHaptics
 import com.fearmikey.projectreporter.ui.component.PhotoDetailDialog
 import com.fearmikey.projectreporter.ui.theme.StatusBarContentFor
 import com.fearmikey.projectreporter.ui.viewmodel.ReportViewModel
@@ -93,6 +94,7 @@ fun ReportDetailScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val haptics = rememberAppHaptics()
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val reportItems = remember(photos, notes) {
@@ -116,6 +118,7 @@ fun ReportDetailScreen(
     fun moveToRecycleBin(delPhotos: List<PhotoEntity>, delNotes: List<NoteEntity>) {
         if (delPhotos.isEmpty() && delNotes.isEmpty()) return
         viewModel.softDeleteItems(delPhotos, delNotes)
+        haptics.movedToBin()
         val message = "${describeItems(delPhotos.size, delNotes.size).replaceFirstChar { it.uppercase() }} moved to Recycle Bin"
         scope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
@@ -127,6 +130,7 @@ fun ReportDetailScreen(
             )
             if (result == SnackbarResult.ActionPerformed) {
                 viewModel.restoreItems(delPhotos, delNotes)
+                haptics.restored()
             }
         }
     }
@@ -148,7 +152,7 @@ fun ReportDetailScreen(
         viewModel.setProjectId(projectId)
     }
 
-    var showCamera by remember { mutableStateOf(false) }
+    var showCamera by rememberSaveable { mutableStateOf(false) }
     var showNoteDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
 
@@ -207,6 +211,7 @@ fun ReportDetailScreen(
                         if (isSelectionMode) {
                             IconButton(onClick = {
                                 selectedIds = reportItems.map { it.id }.toSet()
+                                haptics.selectionChanged()
                             }) {
                                 Icon(Icons.Default.SelectAll, contentDescription = "Select all")
                             }
@@ -227,6 +232,7 @@ fun ReportDetailScreen(
                                 if (reportItems.isNotEmpty()) {
                                     isSelectionMode = true
                                     selectedIds = emptySet()
+                                    haptics.selectionChanged()
                                 }
                             }) {
                                 Icon(Icons.Default.Checklist, contentDescription = "Select")
@@ -312,6 +318,7 @@ fun ReportDetailScreen(
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
+                                        haptics.selectionToggled(!isSelected)
                                     } else {
                                         photoIdToView = item.photo.photoId
                                     }
@@ -332,6 +339,7 @@ fun ReportDetailScreen(
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
+                                        haptics.selectionToggled(!isSelected)
                                     } else {
                                         noteToEdit = item.note
                                         showNoteDialog = true
@@ -366,9 +374,10 @@ fun ReportDetailScreen(
                     .zIndex(1f)
             ) {
                 CameraScreen(
+                    // Only saves; the camera closes itself after a reviewed photo and
+                    // stays open in fast-capture mode.
                     onPhotoCaptured = { uri, annotation ->
                         viewModel.addPhoto(uri.toString(), annotation)
-                        showCamera = false
                     },
                     onClose = { showCamera = false },
                     defaultFlashMode = themeSettings.defaultFlashMode,

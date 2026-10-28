@@ -14,6 +14,7 @@ Project Reporter is an Android application designed for site engineers to docume
 - Data Persistence: Local database storage using Room for offline access.
 - User Profiles: Maintain inspector information for consistent report headers.
 - Accessible Dynamic Themes: Custom Material 3 theme engine with WCAG 2.x AA/AAA color contrast validation, High Contrast mode, and AMOLED dark mode.
+- Tactile Feedback: System-integrated haptic responses for selection, deletion, and restoration actions.
 - Recycle Bin: Safety mechanism for deleted reports.
 - Optimized Performance: Memory-cached image loading with Coil, lifecycle-aware state collection, and predictive back navigation support.
 
