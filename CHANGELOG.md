@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-10-28
+### Added
+- F-Droid metadata recipe (`fdroid/com.fearmikey.projectreporter.yml`) and Fastlane store metadata (`fastlane/metadata/android/en-US/`).
+- MIT `LICENSE` file.
+
+### Changed
+- Release builds no longer embed VCS info (`vcsInfo`) or Google-encrypted dependency metadata (`dependenciesInfo`), so F-Droid can build them reproducibly.
+- `.gitignore` now excludes the whole `.idea/` directory and signing keys (`*.jks`, `*.keystore`, `keystore.properties`).
+
+### Fixed
+- README described PDF export as iText-based; it uses Android's native `PdfDocument`.
+
 ## [1.5.1] - 2026-10-28
 ### Added
 - In-place JPEG photo watermarking (`PhotoWatermark`) burning timestamp, project details, and GPS coordinates directly into captured images while preserving camera EXIF metadata.

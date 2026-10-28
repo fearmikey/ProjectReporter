@@ -14,8 +14,8 @@ android {
         applicationId = "com.fearmikey.projectreporter"
         minSdk = 30
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.5.1"
+        versionCode = 8
+        versionName = "1.5.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -32,6 +32,11 @@ android {
                 "proguard-rules.pro"
             )
         }
+    }
+    dependenciesInfo {
+        // F-Droid: don't embed the Google-encrypted dependency metadata blob in the APK/AAB
+        includeInApk = false
+        includeInBundle = false
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

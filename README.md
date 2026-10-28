@@ -25,7 +25,7 @@ ProjectReporter is an Android application designed for site engineers to documen
 - Local Database: Room
 - Image Loading: Coil (custom ImageLoader with memory caching and crossfade)
 - Async Processing: Kotlin Coroutines & Lifecycle-Aware Flows
-- Export Services: Custom iText-based PDF and Apache POI-based Word document generation
+- Export Services: Android-native PdfDocument PDF generation and Apache POI-based Word document generation
 - Build Optimization: R8 code minification and resource shrinking
 
 ## Getting Started
@@ -35,4 +35,4 @@ To build the project, ensure you have the latest version of Android Studio insta
 3. Run the application on an Android device or emulator (API 30+).
 
 ## License
-Refer to the project license for usage terms.
+Released under the MIT License. See [LICENSE](LICENSE) for details.

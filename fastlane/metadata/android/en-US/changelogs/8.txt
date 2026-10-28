@@ -1,0 +1,2 @@
+- First F-Droid release: reproducible release build configuration.
+- Added store metadata and MIT license.

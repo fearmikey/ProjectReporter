@@ -1,4 +1,4 @@
-- Added in-place JPEG photo watermarking (timestamp, GPS, project details).
-- Added app-wide tactile haptic feedback for report and bin operations.
-- Fixed photo retention during camera capture flow.
-- Optimized PDF and Word report generation.
+- Added in-place JPEG photo watermarking (timestamp, GPS, project details) that preserves EXIF metadata.
+- Added app-wide haptic feedback for selection, delete, and restore actions.
+- Fixed confirmed camera photos appearing blank on the report screen.
+- Fixed release build deprecation warnings (Room migration, Word export images).
