@@ -21,6 +21,14 @@
 * The application must remain fully functional offline.
 * All user data (projects, reports, photos, notes, inspector profiles, templates, backups) must stay local on device or sync via user-configured open backup/restore options (e.g., local JSON/ZIP export).
 
+## CODEBASE NAVIGATION & AGENT MANIFEST (.agent_manifest.json)
+
+### MANDATORY PRE-FLIGHT CONSULTATION
+* **Consult Before Modifying Code:** Before attempting any code modification or adding new features, agents **MUST** consult `.agent_manifest.json` to identify the architectural pattern, component locations, and specific files responsible for data flow. Do not guess file paths.
+
+### MANDATORY POST-SESSION MANIFEST MAINTENANCE
+* **End-of-Session Manifest Updates:** At the end of every development session or task where files or architectural components are added, removed, moved, or modified, agents **MUST** update `.agent_manifest.json` to keep the code map and feature data flows up to date.
+
 ## RELEASE & PUBLISHING WORKFLOW (F-DROID)
 
 ### AUTOMATED F-DROID UPDATES

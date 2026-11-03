@@ -1,0 +1,247 @@
+{
+  "project_info": {
+    "name": "ProjectReporter",
+    "package_name": "com.fearmikey.projectreporter",
+    "version_name": "1.5.2",
+    "version_code": 8,
+    "description": "100% FOSS, offline-first Android application for field inspection reports with photo watermarking, rich notes, PDF/Word exports, custom branding, and local backup/restore."
+  },
+  "architecture": {
+    "pattern": "MVVM with Clean Architecture principles",
+    "di_framework": "Hilt (Dagger)",
+    "async_concurrency": "Kotlin Coroutines & Flow / StateFlow",
+    "ui_toolkit": "Jetpack Compose (Material 3)",
+    "persistence": "Room Database (SQLite) + DataStore Preferences"
+  },
+  "rules_and_constraints": {
+    "foss_policy": "STRICT 100% FOSS (F-Droid compliance). ZERO proprietary SDKs allowed (no Google Play Services, AdMob, Billing, ML Kit, Firebase binaries, or tracking SDKs).",
+    "offline_first": "100% offline functionality; all data stays local on device or in user-managed local ZIP backups.",
+    "agent_manifest_maintenance": "Agents MUST update this file (.agent_manifest.json) at the end of each session whenever files or architecture change."
+  },
+  "code_map": {
+    "root_package": "app/src/main/java/com/fearmikey/projectreporter",
+    "components": {
+      "entry_point": {
+        "MainActivity": "app/src/main/java/com/fearmikey/projectreporter/MainActivity.kt",
+        "ProjectReporterApp": "app/src/main/java/com/fearmikey/projectreporter/ProjectReporterApp.kt"
+      },
+      "data": {
+        "entities": {
+          "ProjectEntity": "app/src/main/java/com/fearmikey/projectreporter/data/entity/ProjectEntity.kt",
+          "ProfileEntity": "app/src/main/java/com/fearmikey/projectreporter/data/entity/ProfileEntity.kt",
+          "PhotoEntity": "app/src/main/java/com/fearmikey/projectreporter/data/entity/PhotoEntity.kt",
+          "NoteEntity": "app/src/main/java/com/fearmikey/projectreporter/data/entity/NoteEntity.kt"
+        },
+        "models": {
+          "ExportOptions": "app/src/main/java/com/fearmikey/projectreporter/data/model/ExportOptions.kt",
+          "ReportBranding": "app/src/main/java/com/fearmikey/projectreporter/data/model/ReportBranding.kt"
+        },
+        "dao": {
+          "ReportDao": "app/src/main/java/com/fearmikey/projectreporter/data/dao/ReportDao.kt"
+        },
+        "db": {
+          "ReportDatabase": "app/src/main/java/com/fearmikey/projectreporter/data/db/ReportDatabase.kt"
+        },
+        "repositories": {
+          "ReportRepository": "app/src/main/java/com/fearmikey/projectreporter/data/repository/ReportRepository.kt",
+          "SettingsRepository": "app/src/main/java/com/fearmikey/projectreporter/data/repository/SettingsRepository.kt"
+        }
+      },
+      "di": {
+        "DatabaseModule": "app/src/main/java/com/fearmikey/projectreporter/di/DatabaseModule.kt",
+        "RepositoryModule": "app/src/main/java/com/fearmikey/projectreporter/di/RepositoryModule.kt"
+      },
+      "ui": {
+        "navigation": {
+          "Screen": "app/src/main/java/com/fearmikey/projectreporter/ui/navigation/Screen.kt"
+        },
+        "screens": {
+          "MainDashboardScreen": "app/src/main/java/com/fearmikey/projectreporter/ui/screen/MainDashboardScreen.kt",
+          "ReportDetailScreen": "app/src/main/java/com/fearmikey/projectreporter/ui/screen/ReportDetailScreen.kt",
+          "RecycleBinScreen": "app/src/main/java/com/fearmikey/projectreporter/ui/screen/RecycleBinScreen.kt",
+          "SettingsScreen": "app/src/main/java/com/fearmikey/projectreporter/ui/screen/SettingsScreen.kt",
+          "ProfileSetupScreen": "app/src/main/java/com/fearmikey/projectreporter/ui/screen/ProfileSetupScreen.kt",
+          "PermissionScreen": "app/src/main/java/com/fearmikey/projectreporter/ui/screen/PermissionScreen.kt"
+        },
+        "viewmodels": {
+          "MainViewModel": "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/MainViewModel.kt",
+          "ReportViewModel": "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/ReportViewModel.kt",
+          "RecycleBinViewModel": "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/RecycleBinViewModel.kt",
+          "SettingsViewModel": "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/SettingsViewModel.kt"
+        },
+        "components": {
+          "CameraPreview": "app/src/main/java/com/fearmikey/projectreporter/ui/component/CameraPreview.kt",
+          "NoteEditorDialog": "app/src/main/java/com/fearmikey/projectreporter/ui/component/NoteEditorDialog.kt",
+          "NoteEditingControls": "app/src/main/java/com/fearmikey/projectreporter/ui/component/NoteEditingControls.kt",
+          "NoteFormatter": "app/src/main/java/com/fearmikey/projectreporter/ui/component/NoteFormatter.kt",
+          "PhotoDetailDialog": "app/src/main/java/com/fearmikey/projectreporter/ui/component/PhotoDetailDialog.kt",
+          "EditProjectDialog": "app/src/main/java/com/fearmikey/projectreporter/ui/component/EditProjectDialog.kt",
+          "AppHaptics": "app/src/main/java/com/fearmikey/projectreporter/ui/component/AppHaptics.kt"
+        },
+        "theme": {
+          "Theme": "app/src/main/java/com/fearmikey/projectreporter/ui/theme/Theme.kt",
+          "Color": "app/src/main/java/com/fearmikey/projectreporter/ui/theme/Color.kt",
+          "ColorContrast": "app/src/main/java/com/fearmikey/projectreporter/ui/theme/ColorContrast.kt",
+          "Type": "app/src/main/java/com/fearmikey/projectreporter/ui/theme/Type.kt"
+        }
+      },
+      "util_and_services": {
+        "PdfExportService": "app/src/main/java/com/fearmikey/projectreporter/util/PdfExportService.kt",
+        "WordExportService": "app/src/main/java/com/fearmikey/projectreporter/util/WordExportService.kt",
+        "BackupService": "app/src/main/java/com/fearmikey/projectreporter/util/BackupService.kt",
+        "PhotoWatermark": "app/src/main/java/com/fearmikey/projectreporter/util/PhotoWatermark.kt",
+        "NotificationService": "app/src/main/java/com/fearmikey/projectreporter/util/NotificationService.kt",
+        "OpenDownloadsActivity": "app/src/main/java/com/fearmikey/projectreporter/util/OpenDownloadsActivity.kt",
+        "RoleLabels": "app/src/main/java/com/fearmikey/projectreporter/util/RoleLabels.kt"
+      },
+      "unit_tests": {
+        "NoteFormatterTest": "app/src/test/java/com/fearmikey/projectreporter/ui/component/NoteFormatterTest.kt",
+        "BackupServiceTest": "app/src/test/java/com/fearmikey/projectreporter/util/BackupServiceTest.kt"
+      }
+    }
+  },
+  "feature_data_flows": {
+    "project_management": {
+      "description": "Create, edit, soft delete, and list field inspection projects.",
+      "ui": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/screen/MainDashboardScreen.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/ui/component/EditProjectDialog.kt"
+      ],
+      "viewmodel": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/MainViewModel.kt"
+      ],
+      "repository": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/repository/ReportRepository.kt"
+      ],
+      "dao": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/dao/ReportDao.kt"
+      ],
+      "entities": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/entity/ProjectEntity.kt"
+      ]
+    },
+    "photo_capture_and_watermarking": {
+      "description": "Capture photos via CameraX, stamp location/time watermarks, attach to projects, inspect photo details, and soft delete.",
+      "ui": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/screen/ReportDetailScreen.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/ui/component/CameraPreview.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/ui/component/PhotoDetailDialog.kt"
+      ],
+      "viewmodel": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/ReportViewModel.kt"
+      ],
+      "repository_and_utils": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/repository/ReportRepository.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/util/PhotoWatermark.kt"
+      ],
+      "dao": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/dao/ReportDao.kt"
+      ],
+      "entities": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/entity/PhotoEntity.kt"
+      ]
+    },
+    "note_management_and_rich_formatting": {
+      "description": "Add, edit, format (bold, italic, list items, headers), reorder, and soft delete notes for project reports.",
+      "ui": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/screen/ReportDetailScreen.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/ui/component/NoteEditorDialog.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/ui/component/NoteEditingControls.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/ui/component/NoteFormatter.kt"
+      ],
+      "viewmodel": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/ReportViewModel.kt"
+      ],
+      "repository": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/repository/ReportRepository.kt"
+      ],
+      "dao": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/dao/ReportDao.kt"
+      ],
+      "entities": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/entity/NoteEntity.kt"
+      ]
+    },
+    "report_export": {
+      "description": "Export complete report (profile, notes, photos, custom branding) to PDF or Word (.docx).",
+      "ui": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/screen/ReportDetailScreen.kt"
+      ],
+      "viewmodel": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/ReportViewModel.kt"
+      ],
+      "repository_and_services": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/repository/ReportRepository.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/util/PdfExportService.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/util/WordExportService.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/util/OpenDownloadsActivity.kt"
+      ],
+      "models": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/model/ExportOptions.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/data/model/ReportBranding.kt"
+      ]
+    },
+    "recycle_bin": {
+      "description": "View, restore, or permanently delete soft-deleted items (photos, notes, projects).",
+      "ui": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/screen/RecycleBinScreen.kt"
+      ],
+      "viewmodel": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/RecycleBinViewModel.kt"
+      ],
+      "repository": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/repository/ReportRepository.kt"
+      ],
+      "dao": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/dao/ReportDao.kt"
+      ]
+    },
+    "settings_branding_and_theme": {
+      "description": "Manage application theme (Dark/Light/System), high contrast colors, company branding (logo, primary color, header text).",
+      "ui": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/screen/SettingsScreen.kt"
+      ],
+      "viewmodel": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/SettingsViewModel.kt"
+      ],
+      "repository": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/repository/SettingsRepository.kt"
+      ],
+      "models": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/model/ReportBranding.kt"
+      ]
+    },
+    "backup_and_restore": {
+      "description": "Export entire database and photos to ZIP archive, or restore state from backup file.",
+      "ui": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/screen/SettingsScreen.kt"
+      ],
+      "viewmodel": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/SettingsViewModel.kt"
+      ],
+      "services": [
+        "app/src/main/java/com/fearmikey/projectreporter/util/BackupService.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/data/repository/ReportRepository.kt"
+      ]
+    },
+    "inspector_profile_and_onboarding": {
+      "description": "Setup/update inspector profile (name, title, company, email, phone, signature) and camera runtime permissions.",
+      "ui": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/screen/ProfileSetupScreen.kt",
+        "app/src/main/java/com/fearmikey/projectreporter/ui/screen/PermissionScreen.kt"
+      ],
+      "viewmodel": [
+        "app/src/main/java/com/fearmikey/projectreporter/ui/viewmodel/MainViewModel.kt"
+      ],
+      "repository": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/repository/ReportRepository.kt"
+      ],
+      "dao": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/dao/ReportDao.kt"
+      ],
+      "entities": [
+        "app/src/main/java/com/fearmikey/projectreporter/data/entity/ProfileEntity.kt"
+      ]
+    }
+  }
+}

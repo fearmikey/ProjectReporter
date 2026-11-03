@@ -1,0 +1,9 @@
+# Cursor / Agent Rules for ProjectReporter
+
+Before attempting any code modification, you must consult .agent_manifest.json to identify the architectural pattern and the specific files responsible for data flow. Do not guess file paths.
+
+## Key Operational Rules:
+1. **Consult Manifest First:** Always inspect `.agent_manifest.json` to understand the codebase structure, architectural layer mappings, and feature data flows before making changes.
+2. **Maintain Manifest:** Update `.agent_manifest.json` at the end of every session whenever files or architectural components are created, moved, renamed, or modified.
+3. **Strict FOSS Policy:** Zero proprietary dependencies (no Google Play Services, AdMob, Billing, ML Kit, Firebase binaries, or tracking SDKs). Target distribution is F-Droid.
+4. **Offline & Local Data:** Maintain 100% offline functionality and local-first data storage (Room DB + DataStore + Local Files).
