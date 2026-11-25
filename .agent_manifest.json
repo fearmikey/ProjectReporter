@@ -2,8 +2,8 @@
   "project_info": {
     "name": "ProjectReporter",
     "package_name": "com.fearmikey.projectreporter",
-    "version_name": "1.5.2",
-    "version_code": 8,
+    "version_name": "1.5.3",
+    "version_code": 9,
     "description": "100% FOSS, offline-first Android application for field inspection reports with photo watermarking, rich notes, PDF/Word exports, custom branding, and local backup/restore."
   },
   "architecture": {

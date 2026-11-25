@@ -1,0 +1,3 @@
+- No app changes: build tooling update so F-Droid can verify the build (reproducible builds) and ship it with the developer's signature.
+- Updated Android Gradle Plugin to 8.13.2.
+- Release APKs are now named ProjectReporter-<version>.apk.
