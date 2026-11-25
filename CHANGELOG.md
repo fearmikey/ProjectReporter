@@ -2,7 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.5.4] - 2026-11-25
+No app functionality changes.
+
 ### Fixed
 - Release builds no longer strip debug symbols from the prebuilt native libraries in AndroidX dependencies. Stripping only happened when an Android NDK was installed, so builds made with and without an NDK differed (1.5.3 failed F-Droid's reproducible-build check on `libdatastore_shared_counter.so`).
 

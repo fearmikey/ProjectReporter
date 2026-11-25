@@ -1,0 +1,1 @@
+- No app changes: fixes the build so F-Droid's own build matches the signed release APK (reproducible builds).
