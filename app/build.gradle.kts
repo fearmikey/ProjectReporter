@@ -68,6 +68,11 @@ android {
             excludes += "META-INF/ASL2.0"
             excludes += "META-INF/*.kotlin_module"
         }
+        jniLibs {
+            // Reproducible builds: AGP strips prebuilt .so files only when an NDK is installed,
+            // so builds with and without an NDK (e.g. F-Droid's CI) would differ. Never strip.
+            keepDebugSymbols += "**/*.so"
+        }
     }
 }
 
