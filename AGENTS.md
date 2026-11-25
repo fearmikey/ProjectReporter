@@ -34,9 +34,10 @@
 Releases are agent-run. The signed APK is built by `scripts/build-release.sh` exactly the way F-Droid builds it, so F-Droid can verify its own build against our APK (reproducible builds) and ship it with our signature.
 
 ### F-Droid status: RE-CHECK AT THE START OF EVERY RELEASE
-**Current state: A (not submitted)** (checked 2026-11-25). The app is not in fdroiddata `origin/master`, there is no MR, and it's not on f-droid.org (API 404).
-* The draft recipe is on branch `com.fearmikey.projectreporter` in the worktree `~/fdroid/fdroiddata-projectreporter`, as **one local, unpushed commit**. The fork already has a stale, never-submitted branch with the same name; the first push overwrites it with `--force-with-lease`.
-* 1.5.3 was released on 2026-11-25 (`ProjectReporter-1.5.3.apk`, signer verified). The recipe's 1.5.3 entry passed a local `fdroid build` reference-binary check, and the commit is ready in the worktree. **Next step: push the fork branch and open the inclusion MR, after the user approves.** After that, the state is B; record the MR link here.
+**Current state: B (MR open)** (opened 2026-11-25): [fdroid/fdroiddata!59135](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/59135) "New app: ProjectReporter (com.fearmikey.projectreporter)". Not yet in fdroiddata `origin/master` and not on f-droid.org (API 404).
+* The MR is one commit on branch `com.fearmikey.projectreporter` (fork remote `fork` = `git@gitlab.com:fearmikey/fdroiddata.git`), from the worktree `~/fdroid/fdroiddata-projectreporter`. It contains a single build entry for 1.5.3 (versionCode 9, commit `677987eba25f13dd4a6111d8fb09d858cc072af8`), which passed a local `fdroid build` reference-binary check. The MR description draft is in `~/fdroid/mr-projectreporter.md`.
+* For new releases while the MR is open, follow step 11 (B): replace the build entry, amend, and ask before `--force-with-lease`. Read reviewer notes first: `glab api projects/36528/merge_requests/59135/notes?sort=desc`.
+* Once merged, the state becomes C2/D. Then stop touching this branch; checkupdates picks up new tags.
 * Tooling notes: the shared `~/fdroid/venv` is managed by several sessions; never reinstall or upgrade it. If `fdroid build` says "Gradle is not found" (fdroidserver 2.4.2 looks up `gradlew-fdroid` on `PATH`), prepend a directory containing a `gradlew-fdroid` symlink to `~/fdroid/venv/lib/python3.*/site-packages/gradlew-fdroid` for that command. Older `fdroid rewritemeta` versions wrap `Binaries:`/`AllowedAPKSigningKeys:` onto continuation lines with a trailing space; keep them on one line as in the committed recipe.
 
 The state changes when an MR is opened or merged, so re-run these checks before every release and update this section (state, MR link, date):
