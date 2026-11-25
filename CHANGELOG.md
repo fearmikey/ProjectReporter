@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Release APKs are now built by `scripts/build-release.sh` from a fresh checkout of the release tag (reproducible, verifiable by F-Droid) and published as `ProjectReporter-<version>.apk` instead of `app-release.apk`.
 - The F-Droid recipe now lives only in fdroiddata; the copy in `fdroid/` was removed.
+- Upgraded the Android Gradle Plugin from 8.7.3 to 8.13.2. Its R8 fixes a race that made the bundled baseline profile (`assets/dexopt/baseline.prof`) differ between otherwise identical builds, which could make F-Droid's reproducible-build check fail.
 
 ## [1.5.2] - 2026-10-28
 ### Added
