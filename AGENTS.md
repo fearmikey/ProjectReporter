@@ -29,28 +29,76 @@
 ### MANDATORY POST-SESSION MANIFEST MAINTENANCE
 * **End-of-Session Manifest Updates:** At the end of every development session or task where files or architectural components are added, removed, moved, or modified, agents **MUST** update `.agent_manifest.json` to keep the code map and feature data flows up to date.
 
-## RELEASE & PUBLISHING WORKFLOW (F-DROID)
+## RELEASE WORKFLOW (GitHub Releases + F-Droid reproducible builds)
 
-### AUTOMATED F-DROID UPDATES
-The app is published on F-Droid with Reproducible Builds enabled and auto-update tracking via Git tags. When helping the user create a new release, agents **MUST** follow this exact workflow to ensure F-Droid successfully picks up the update:
+Releases are agent-run. The signed APK is built by `scripts/build-release.sh` exactly the way F-Droid builds it, so F-Droid can verify its own build against our APK (reproducible builds) and ship it with our signature.
 
-1. **Bump Versions:** Update `versionCode` and `versionName` in `app/build.gradle.kts`.
-2. **Reproducible Build Configuration:** Ensure `vcsInfo { include = false }` is present in `app/build.gradle.kts` under `buildTypes.release`. This prevents AGP from embedding local Git commit metadata in `META-INF/version-control-info.textproto`, which breaks F-Droid reproducible build verification. Also keep `dependenciesInfo { includeInApk = false; includeInBundle = false }` so AGP doesn't add the Google-encrypted dependency metadata block that F-Droid rejects.
-3. **Fastlane Changelog:** Create a new text file at `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` containing the concise release notes.
-4. **Standard Changelog & Readme:** Update the main `CHANGELOG.md` with detailed bullet points under `## [X.Y.Z] - YYYY-MM-DD` and update the version badge in `README.md`.
-5. **Commit & Tag the Release:** Commit the release changes, then create an annotated tag strictly following the `vX.Y.Z` format (e.g., `git tag -a v1.5.2 -m "Release v1.5.2"`).
-6. **F-Droid Metadata Recipe (separate follow-up commit):** A commit cannot contain its own hash, so update `fdroid/com.fearmikey.projectreporter.yml` in a second commit *after* tagging:
-   * Add a new `Builds:` entry with `versionName` and `versionCode`, and update `CurrentVersion` / `CurrentCode`.
-   * Set `commit` to the FULL 40-character hash of the tagged release commit (`git rev-parse vX.Y.Z^{commit}`). Never use a tag name or short hash, and never amend/rebase the tagged commit afterwards.
-   * Ensure `gradle:` is set to `- yes` (do NOT use `- foss` as product flavors were removed).
-   * Keep `Binaries:` (`.../releases/download/v%v/app-release.apk`) and `AllowedAPKSigningKeys:` (signing cert SHA-256 `48ffd109a23daf7205b50aeccb463667ed31e50c3605280ab7ab654821a70ff0`) unchanged.
-   * Categories must come from F-Droid's `config/categories.yml` (currently `Note`, `Writing`).
-7. **Push:** `git push origin master vX.Y.Z`. Do NOT use `--tags` (it pushes every local tag, including stale ones). Never force-push published tags.
-8. **Reproducible Build Binary:** F-Droid requires the compiled APK to verify reproducible builds. Instruct the user to:
-   * Build the signed release APK (`app-release.apk`) from the tagged commit using their secure `ProjectReporter-Release.jks` keystore. The filename must stay `app-release.apk` to match `Binaries:`.
-   * Go to GitHub Releases, draft a new release for the newly pushed `vX.Y.Z` tag.
-   * Upload the `app-release.apk` file.
-   * Verify: with the signature removed, the APK must be byte-identical to a local `./gradlew clean assembleRelease` `app-release-unsigned.apk`.
+### F-Droid status: RE-CHECK AT THE START OF EVERY RELEASE
+**Current state: A (not submitted)** (checked 2026-11-25). The app is not in fdroiddata `origin/master`, there is no MR, and it's not on f-droid.org (API 404).
+* The draft recipe is on branch `com.fearmikey.projectreporter` in the worktree `~/fdroid/fdroiddata-projectreporter`, as **one local, unpushed commit**. The fork already has a stale, never-submitted branch with the same name; the first push overwrites it with `--force-with-lease`.
+* Plan: open the inclusion MR together with release **1.5.3**, the first release built by the script and named `ProjectReporter-<ver>.apk`.
+
+The state changes when an MR is opened or merged, so re-run these checks before every release and update this section (state, MR link, date):
+1. `git -C ~/fdroid/fdroiddata fetch origin master`, then `git -C ~/fdroid/fdroiddata show origin/master:metadata/com.fearmikey.projectreporter.yml`. If the file exists, the app is merged: note `Binaries:`/`binary:`/`AllowedAPKSigningKeys` and the latest builds. Only fetch in `~/fdroid/fdroiddata`. Never switch its checked-out branch, because other sessions use it; use worktrees.
+2. Open MRs: `curl -s "https://gitlab.com/api/v4/projects/fdroid%2Ffdroiddata/merge_requests?state=opened&search=com.fearmikey.projectreporter&in=title,description"`. For an open MR, read its recent notes (`.../merge_requests/<iid>/notes?sort=desc`) and pipeline status, and respect reviewer requests.
+3. `curl -s https://f-droid.org/api/v1/packages/com.fearmikey.projectreporter` (404 means not published). If it is published, download `https://f-droid.org/repo/com.fearmikey.projectreporter_<versionCode>.apk` to a temp dir and compare its `apksigner verify --print-certs` SHA-256 with the release certificate below.
+
+| State | How you know | What's allowed |
+|---|---|---|
+| **A. Not submitted** | not on origin/master, no open MR, not published | Update the draft recipe in the worktree; ask before pushing or opening the MR. |
+| **B. MR open** | open MR, not on origin/master | Update the MR's recipe: replace the build entry instead of adding more, keep the MR at one commit (amend + `--force-with-lease`), rebase only if GitLab reports a conflict. Ask before every push. |
+| **C. Merged, F-Droid-signed** | merged without `AllowedAPKSigningKeys`, or the published signer differs from our cert | **Never** add `Binaries:`/`binary:`/`AllowedAPKSigningKeys`: switching keys would cut off existing F-Droid users. GitHub release + tag only. |
+| **C2. Merged, not yet published** | merged, API returns 404 | Same as C or D, depending on the merged recipe. Don't change signing while the first build is pending. |
+| **D. Merged, reproducible** | merged with `AllowedAPKSigningKeys`, published signer equals our cert | Build exactly as the merged recipe expects. Asset names must match its `Binaries:` URL; renaming needs an fdroiddata MR merged *first*. |
+
+In every merged state (C, C2, D):
+* Never push to, or reuse, the inclusion-MR branch.
+* Never open MRs just to bump versions. F-Droid's checkupdates bot adds builds from our tags (`AutoUpdateMode: Version`, `UpdateCheckMode: Tags`).
+* Only touch fdroiddata when the recipe itself must change, and ask first. Then use a new worktree from a fresh `origin/master`, make the smallest possible change, and run `fdroid rewritemeta` + `fdroid lint`.
+* If a bot update is pending, or another open MR touches this app, stop and ask.
+
+### Release facts
+* **App:** applicationId `com.fearmikey.projectreporter`. One universal APK, minSdk 30, no own native code, no ABI splits. `versionCode` goes up by 1 per release.
+* **Tags:** annotated `vX.Y.Z` on the release commit. The recipe reads `versionCode`/`versionName` from `app/build.gradle.kts` at the tag.
+* **Release certificate SHA-256:** `48ffd109a23daf7205b50aeccb463667ed31e50c3605280ab7ab654821a70ff0`, from `~/Documents/Keystores/ProjectReporter-Release.jks`.
+* **GitHub asset:** `ProjectReporter-<versionName>.apk`, matching the recipe's `Binaries: https://github.com/fearmikey/ProjectReporter/releases/download/v%v/ProjectReporter-%v.apk`. Releases up to 1.5.2 used `app-release.apk`.
+* **Recipe prebuild:** `sed -i -e '/foojay-resolver/d' ../settings.gradle.kts`, because F-Droid's scanner rejects the foojay toolchain plugin. The Gradle daemon then uses a locally installed JDK 21, pinned in `gradle/gradle-daemon-jvm.properties`; locally that's `~/.jdks/ms-21.*`. The script applies the same step.
+* **Reproducibility:** keep `vcsInfo { include = false }` (release) and `dependenciesInfo { includeInApk = false; includeInBundle = false }` in `app/build.gradle.kts`. Verified 2026-11-25: v1.5.2 builds byte-identical from fresh clones at different paths, matches the published APK under `fdroidserver.common.verify_apks`, and passed a local `fdroid build` reference-binary check.
+* **Known issue (AGP 8.7.3 / bundled R8):** R8's rewriting of the ART baseline profile is occasionally non-deterministic. In 1 of 7 builds, it dropped one merged synthetic lambda (`kotlinx.coroutines.CoroutineContextKt$$ExternalSyntheticLambda0`) from `assets/dexopt/baseline.prof`/`.profm`; all dex files were still identical. When that happens, F-Droid's verification of that build fails. If `fdroid build` or F-Droid reports "compared built binary to supplied reference binary but failed" and only `assets/dexopt/baseline.prof*` differ, this is the cause. Don't move the tag: retry the F-Droid build, or fix it forward in a new version.
+* **Build environment:** `JAVA_HOME=~/android-studio/jbr`, `ANDROID_HOME=~/Android/Sdk`; `java` isn't on `PATH` by default (the script handles both). A clean build takes about 5 minutes or more, mostly R8.
+* **Signing secrets:** `~/.config/projectreporter-release/release.env` (chmod 600) with `KEYSTORE`, `KS_PASS`, and optionally `KEY_PASS` and `KEY_ALIAS`. Agents must **never read, print or grep that file, and never ask for passwords in chat**. If it's missing, give the user this to run:
+  ```
+  mkdir -p -m 700 ~/.config/projectreporter-release && ( umask 077
+    read -rsp 'Keystore password: ' ks; echo; read -rsp 'Key password (Enter if same): ' kp; echo
+    { printf 'KEYSTORE=%q\n' "$HOME/Documents/Keystores/ProjectReporter-Release.jks"; printf 'KS_PASS=%q\n' "$ks"
+      [ -n "$kp" ] && printf 'KEY_PASS=%q\n' "$kp"; } > ~/.config/projectreporter-release/release.env )
+  ```
+
+### Trigger
+When the user says **"do a release"** or **"new release build"**, that approves committing, tagging, pushing `master` and the tag, running the script, and creating the GitHub release. It does **not** approve pushing anything to fdroiddata or GitLab (fork branches, MRs, comments).
+
+### Steps
+1. Re-check the F-Droid state (above) and update the status section if it changed.
+2. Bump `versionCode` (+1) and `versionName` in `app/build.gradle.kts`, and `project_info` in `.agent_manifest.json`.
+3. `CHANGELOG.md`: turn `## [Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD`, or add a new section at the top. Never add to an already released section.
+4. Add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` with concise notes (500 characters or fewer).
+5. Update `README.md` if features changed (it has no version badge), and update `.agent_manifest.json` for any file or architecture changes.
+6. Commit `Release X.Y.Z: <summary>` (no AI attribution), then `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
+7. `git push origin master vX.Y.Z`. Never use `--tags`, and never force-push.
+8. Run `scripts/build-release.sh vX.Y.Z` in the background. If the shell times out, check `pgrep -f build-release.sh` and `dist/vX.Y.Z/` before retrying.
+9. Check that the printed certificate SHA-256 equals the release certificate above. **Stop if anything differs.**
+10. `gh release create vX.Y.Z dist/vX.Y.Z/ProjectReporter-X.Y.Z.apk --title "ProjectReporter X.Y.Z" --notes "<the CHANGELOG section>"`. If `gh` is unavailable, ask the user to upload in the browser.
+11. F-Droid follow-up, by state:
+    * **A:** in `~/fdroid/fdroiddata-projectreporter`, update the build entry (`versionName`, `versionCode`, `commit` = full `git rev-parse vX.Y.Z^{commit}`) plus `CurrentVersion`/`CurrentVersionCode`. Run `fdroid rewritemeta` and `fdroid lint`, then `fdroid build -v com.fearmikey.projectreporter:<versionCode>` with `JAVA_HOME` set. Don't combine `-l` with a versionCode. The build downloads the GitHub APK and must report that the build matches the reference binary. Amend the single commit. **Ask** before `git push --force-with-lease fork com.fearmikey.projectreporter` and before opening the MR ('New app: ProjectReporter (com.fearmikey.projectreporter)', ticking "Enable Reproducible Builds" and saying the APKs come from `scripts/build-release.sh`). After that, the state is B.
+    * **B:** same recipe update; ask before pushing, and push only after the GitHub release has its APK.
+    * **C/C2/D:** nothing. The bot picks up the tag.
+
+### Release rules
+* Never build release APKs from the working tree or Android Studio (incremental builds give a different `classes.dex`).
+* Never move or re-create a pushed tag. If a release is broken, fix it forward with a new version.
+* Never change the signing key, the signing flags, or (in state D) the asset name.
+* Never add path-, time- or machine-dependent build inputs (timestamps, absolute paths, git hashes in `BuildConfig`, and so on).
+* If a shell command times out, check whether it actually ran (git reflog, `pgrep`, output files) before retrying.
 
 ### PRIVACY OF COMMIT METADATA
 * Commits and tags must use `fearmikey@users.noreply.github.com`. Never set a personal or work email in the repo's git config.

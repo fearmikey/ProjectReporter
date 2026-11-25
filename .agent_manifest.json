@@ -18,6 +18,17 @@
     "offline_first": "100% offline functionality; all data stays local on device or in user-managed local ZIP backups.",
     "agent_manifest_maintenance": "Agents MUST update this file (.agent_manifest.json) at the end of each session whenever files or architecture change."
   },
+  "release_tooling": {
+    "workflow_doc": "AGENTS.md#release-workflow-github-releases--f-droid-reproducible-builds (includes the current F-Droid state; re-check it every release)",
+    "build_script": "scripts/build-release.sh <vX.Y.Z> -> dist/<tag>/ProjectReporter-<versionName>.apk (fresh clone of the tag, F-Droid prebuild, signed with apksigner --alignment-preserved, v2+v3)",
+    "signing_config": "~/.config/projectreporter-release/release.env (outside repo; never read)",
+    "version_source": "app/build.gradle.kts (versionCode, versionName)",
+    "changelogs": [
+      "CHANGELOG.md",
+      "fastlane/metadata/android/en-US/changelogs/<versionCode>.txt"
+    ],
+    "fdroid_recipe": "Not in this repo. fdroiddata metadata/com.fearmikey.projectreporter.yml, worktree ~/fdroid/fdroiddata-projectreporter (branch com.fearmikey.projectreporter)"
+  },
   "code_map": {
     "root_package": "app/src/main/java/com/fearmikey/projectreporter",
     "components": {

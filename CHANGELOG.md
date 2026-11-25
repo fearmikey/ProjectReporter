@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### Changed
+- Release APKs are now built by `scripts/build-release.sh` from a fresh checkout of the release tag (reproducible, verifiable by F-Droid) and published as `ProjectReporter-<version>.apk` instead of `app-release.apk`.
+- The F-Droid recipe now lives only in fdroiddata; the copy in `fdroid/` was removed.
+
 ## [1.5.2] - 2026-10-28
 ### Added
 - F-Droid metadata recipe (`fdroid/com.fearmikey.projectreporter.yml`) and Fastlane store metadata (`fastlane/metadata/android/en-US/`).

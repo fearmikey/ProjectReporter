@@ -11,6 +11,8 @@ local.properties
 .artifacts/
 .kotlin/
 app/release/
+# Signed release APKs from scripts/build-release.sh
+/dist
 
 # Signing keys must NEVER be committed
 *.jks
